@@ -298,7 +298,7 @@ private struct ZoneLabel: View {
 
     var body: some View {
         if let p = hud.zoneLabel {
-            Text("ПОГЛОТИТЕЛЬ")
+            Text(Strings.t("zone.label"))
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(Color(red: 205 / 255, green: 165 / 255, blue: 1).opacity(0.7))
                 .position(p)

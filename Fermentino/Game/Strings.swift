@@ -10,6 +10,7 @@ import Foundation
 
 enum Strings {
     private static let ru: [String: String] = [
+        "zone.label": "ПОГЛОТИТЕЛЬ",
         "win.title": "ВЫ ПОБЕДИЛИ",
         "win.next": "Дальше →",
         "win.restart": "Рестарт ⟳",
@@ -25,6 +26,7 @@ enum Strings {
     ]
 
     private static let en: [String: String] = [
+        "zone.label": "ABSORBER",
         "win.title": "YOU WIN",
         "win.next": "Next →",
         "win.restart": "Restart ⟳",
@@ -39,8 +41,12 @@ enum Strings {
         "flight.done": "The absorber has accepted the object. The incident is closed.",
     ]
 
+    /// Пока игра целиком на английском (продаём американцам); русский в таблице — задел на локализацию.
+    static let forceEnglish = true
+
     static var isRussian: Bool {
-        Locale.current.language.languageCode?.identifier == "ru"
+        if forceEnglish { return false }
+        return Locale.current.language.languageCode?.identifier == "ru"
     }
 
     static func t(_ key: String) -> String {
