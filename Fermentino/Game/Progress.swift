@@ -17,4 +17,10 @@ enum Progress {
     }
 
     static var hasNext: Bool { roundIndex + 1 < Rounds.all.count }
+
+    private static let prologueKey = "fermentino.prologueSeen"
+    static var prologueSeen: Bool {
+        get { UserDefaults.standard.bool(forKey: prologueKey) }
+        set { UserDefaults.standard.set(newValue, forKey: prologueKey) }
+    }
 }

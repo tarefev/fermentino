@@ -19,8 +19,20 @@ private let winButton = Color(red: 0xb9 / 255, green: 0x8b / 255, blue: 1)
 
 struct ContentView: View {
     @State private var session = GameSession()
+    @State private var showPrologue = !Progress.prologueSeen
 
     var body: some View {
+        if showPrologue {
+            PrologueView {
+                Progress.prologueSeen = true
+                showPrologue = false
+            }
+        } else {
+            gameScreen
+        }
+    }
+
+    private var gameScreen: some View {
         ZStack {
             MetalView(session: session)
                 .ignoresSafeArea()
