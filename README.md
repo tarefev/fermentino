@@ -1,14 +1,17 @@
 # Fermentino
 
-2D-игра под iPhone: много тел, попарная псевдогравитация и столкновения.
-Вся симуляция и рендер на GPU через Metal.
+2D-игра под iPhone, перенос веб-прототипа fermentino.su один в один: Тесей (хост)
+собирает гравитацией инертоны, стреляет ими ради отдачи, собирает фермент (хаб + 3 кэпа
+по валентным слотам) и доставляет его в поглотитель. Тор-мир, камера на хосте, миникарта.
 
 ## Стек
 
 - Swift, SwiftUI (меню и HUD), MetalKit (игровой экран)
-- Симуляция в compute-кернелах: гравитация «каждый с каждым» с тайлингом,
-  position-based столкновения через хэш-сетку, Verlet-интеграция
-- Один instanced draw call на все тела
+- Силы и интегрирование (§2–§3 прототипа) в compute-кернелах: попарная гравитация
+  с cutoff, мягкий контакт с липкостью, валентные связи (длина + угол), вязкость,
+  чёрная дыра поглотителя; 5 подшагов на кадр, формулы и константы K те же
+- Игровая логика (связи, выброс, «свои», нестабильность, победа, HUD) на CPU в `Game.swift`
+- Рендер: инстансированные фигуры + линии, сцена собирается на CPU в `SceneBuilder`
 
 ## Сборка
 
@@ -28,9 +31,19 @@ xcodebuild -downloadComponent MetalToolchain
 
 ## Структура
 
+- `Fermentino/Game/GameConstants.swift` — константы K прототипа
+- `Fermentino/Game/Game.swift` — логика раунда (порт функций прототипа)
 - `Fermentino/Shaders/ShaderTypes.h` — структуры, общие для Swift и Metal
-- `Fermentino/Shaders/Simulation.metal` — кернелы симуляции
-- `Fermentino/Shaders/Render.metal` — рендер кругов
-- `Fermentino/Simulation/Simulation.swift` — буферы и кодирование кадра
-- `Fermentino/Rendering/Renderer.swift` — `MTKViewDelegate`
-- `Fermentino/Rendering/MetalView.swift` — SwiftUI-обёртка и касания
+- `Fermentino/Shaders/Simulation.metal` — computeForces / integrate
+- `Fermentino/Shaders/Render.metal` — фигуры и линии
+- `Fermentino/Simulation/GPUSimulation.swift` — буферы тел и запуск подшагов
+- `Fermentino/Rendering/SceneBuilder.swift` — порт draw(): сцена в экранных точках
+- `Fermentino/Rendering/Renderer.swift` — `MTKViewDelegate`, кадр игры + отрисовка
+- `Fermentino/Rendering/MetalView.swift` — SwiftUI-обёртка, тап = выстрел
+- `Fermentino/App/ContentView.swift` — HUD, интро, победа, подпись зоны (SwiftUI)
+
+## Отличия от прототипа
+
+- Клавиши Q/W, A/S, E/R, L, D, B, Backspace — тапабельные токены в HUD
+- На телефоне миникарта в правом нижнем углу (120 pt), чтобы не перекрывать HUD
+- Масштаб мира 1:1 в точках экрана: на iPhone видно меньше, чем на мониторе

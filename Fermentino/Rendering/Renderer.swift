@@ -2,130 +2,131 @@
 //  Renderer.swift
 //  Fermentino
 //
-//  MTKViewDelegate: гоняет симуляцию и рисует тела одним instanced draw.
+//  MTKViewDelegate: крутит кадр игры, собирает сцену и рисует её двумя пайплайнами.
 //
 
 import Foundation
 import MetalKit
 import simd
 
-final class RendererStats: ObservableObject {
-    @Published var fps: Double = 0
-    @Published var bodyCount: Int = 0
-}
-
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
-    let stats: RendererStats
+    let game: Game
+    var scale: Float = 1
+
     private let commandQueue: MTLCommandQueue
-    private let renderState: MTLRenderPipelineState
-    private let simulation: Simulation
+    private let shapeState: MTLRenderPipelineState
+    private let lineState: MTLRenderPipelineState
 
-    private var frameCounter = 0
-    private var lastStatsTime = CACurrentMediaTime()
+    private let ringSize = 3
+    private var slot = 0
+    private let inFlight: DispatchSemaphore
+    private var shapeBuffers: [MTLBuffer] = []
+    private var lineBuffers: [MTLBuffer] = []
+    private let shapeCapacity = 65536
+    private let lineCapacity = 16384
 
-    init?(view: MTKView, stats: RendererStats) {
+    init?(view: MTKView, hud: HUDModel) {
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary() else { return nil }
         self.device = device
         self.commandQueue = queue
-        self.stats = stats
+        inFlight = DispatchSemaphore(value: ringSize)
 
         view.device = device
         view.colorPixelFormat = .bgra8Unorm
-        view.clearColor = MTLClearColor(red: 0.03, green: 0.03, blue: 0.05, alpha: 1)
-        view.preferredFramesPerSecond = 120
+        let bg = K.COL_BG
+        view.clearColor = MTLClearColor(red: Double(bg.x), green: Double(bg.y), blue: Double(bg.z), alpha: 1)
+        view.preferredFramesPerSecond = 60
         view.isPaused = false
         view.enableSetNeedsDisplay = false
 
-        let descriptor = MTLRenderPipelineDescriptor()
-        descriptor.label = "bodies"
-        descriptor.vertexFunction = library.makeFunction(name: "bodyVertex")
-        descriptor.fragmentFunction = library.makeFunction(name: "bodyFragment")
-        descriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
-        descriptor.colorAttachments[0].isBlendingEnabled = true
-        descriptor.colorAttachments[0].rgbBlendOperation = .add
-        descriptor.colorAttachments[0].alphaBlendOperation = .add
-        descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
-        descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
-        descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
-        descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        func pipeline(_ label: String, _ vertex: String, _ fragment: String) throws -> MTLRenderPipelineState {
+            let d = MTLRenderPipelineDescriptor()
+            d.label = label
+            d.vertexFunction = library.makeFunction(name: vertex)
+            d.fragmentFunction = library.makeFunction(name: fragment)
+            d.colorAttachments[0].pixelFormat = view.colorPixelFormat
+            d.colorAttachments[0].isBlendingEnabled = true
+            d.colorAttachments[0].rgbBlendOperation = .add
+            d.colorAttachments[0].alphaBlendOperation = .add
+            d.colorAttachments[0].sourceRGBBlendFactor = .one
+            d.colorAttachments[0].sourceAlphaBlendFactor = .one
+            d.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+            d.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            return try device.makeRenderPipelineState(descriptor: d)
+        }
 
         do {
-            renderState = try device.makeRenderPipelineState(descriptor: descriptor)
-            let size = view.drawableSize
-            let aspect = size.height > 0 ? Float(size.width / size.height) : 0.5
-            simulation = try Simulation(device: device, library: library, aspect: aspect)
+            shapeState = try pipeline("shapes", "shapeVertex", "shapeFragment")
+            lineState = try pipeline("lines", "lineVertex", "lineFragment")
+            let sim = try GPUSimulation(device: device, library: library, capacity: 8192)
+            game = Game(sim: sim, hud: hud)
         } catch {
             print("Renderer init failed: \(error)")
             return nil
         }
-        stats.bodyCount = simulation.config.bodyCount
+        for i in 0..<ringSize {
+            let s = device.makeBuffer(length: MemoryLayout<ShapeInstance>.stride * shapeCapacity, options: .storageModeShared)!
+            s.label = "shapes\(i)"
+            let l = device.makeBuffer(length: MemoryLayout<LineVertex>.stride * lineCapacity, options: .storageModeShared)!
+            l.label = "lines\(i)"
+            shapeBuffers.append(s)
+            lineBuffers.append(l)
+        }
         super.init()
     }
 
-    // MARK: - Input
-
-    func setAttractor(screenPoint: CGPoint?, in view: MTKView) {
-        guard let pt = screenPoint else {
-            simulation.setAttractor(nil)
-            return
-        }
-        let bounds = view.bounds
-        guard bounds.width > 0, bounds.height > 0 else { return }
-        let aspect = simulation.params.aspect
-        let x = Float(pt.x / bounds.width * 2 - 1) * aspect
-        let y = Float(1 - pt.y / bounds.height * 2)
-        simulation.setAttractor(SIMD2<Float>(x, y))
-    }
-
-    func reset() {
-        simulation.seed()
-    }
-
-    // MARK: - MTKViewDelegate
-
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        guard size.height > 0 else { return }
-        simulation.updateAspect(Float(size.width / size.height))
-    }
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
+        game.frame(now: CACurrentMediaTime())
+
+        var builder = SceneBuilder(game: game, size: view.bounds.size, scale: scale)
+        let scene = builder.build()
+        game.hud.zoneLabel = scene.zoneLabel
+
         guard let drawable = view.currentDrawable,
-              let passDescriptor = view.currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer() else { return }
-        commandBuffer.label = "frame"
+              let pass = view.currentRenderPassDescriptor else { return }
+        inFlight.wait()
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else { inFlight.signal(); return }
+        commandBuffer.label = "render"
+        let sema = inFlight
+        commandBuffer.addCompletedHandler { _ in sema.signal() }
 
-        simulation.encode(into: commandBuffer)
+        let shapeCount = min(scene.shapes.count, shapeCapacity)
+        let lineCount = min(scene.lines.count, lineCapacity) / 2 * 2
+        let sb = shapeBuffers[slot], lb = lineBuffers[slot]
+        slot = (slot + 1) % ringSize
+        scene.shapes.withUnsafeBufferPointer { src in
+            sb.contents().copyMemory(from: src.baseAddress!, byteCount: MemoryLayout<ShapeInstance>.stride * shapeCount)
+        }
+        if lineCount > 0 {
+            scene.lines.withUnsafeBufferPointer { src in
+                lb.contents().copyMemory(from: src.baseAddress!, byteCount: MemoryLayout<LineVertex>.stride * lineCount)
+            }
+        }
 
-        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else { return }
-        encoder.label = "render"
-        encoder.setRenderPipelineState(renderState)
-        encoder.setVertexBuffer(simulation.positionBuffer, offset: 0, index: 0)
-        encoder.setVertexBuffer(simulation.velocityBuffer, offset: 0, index: 1)
-        var p = simulation.params
-        encoder.setVertexBytes(&p, length: MemoryLayout<SimParams>.stride, index: 2)
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6,
-                               instanceCount: simulation.config.bodyCount)
+        var uniforms = FrameUniforms()
+        uniforms.viewSize = SIMD2<Float>(Float(view.bounds.width), Float(view.bounds.height))
+
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { commandBuffer.commit(); return }
+        encoder.label = "scene"
+        if shapeCount > 0 {
+            encoder.setRenderPipelineState(shapeState)
+            encoder.setVertexBuffer(sb, offset: 0, index: 0)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: shapeCount)
+        }
+        if lineCount > 0 {
+            encoder.setRenderPipelineState(lineState)
+            encoder.setVertexBuffer(lb, offset: 0, index: 0)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+            encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: lineCount)
+        }
         encoder.endEncoding()
-
         commandBuffer.present(drawable)
         commandBuffer.commit()
-
-        updateStats()
-    }
-
-    private func updateStats() {
-        frameCounter += 1
-        let now = CACurrentMediaTime()
-        let elapsed = now - lastStatsTime
-        guard elapsed >= 0.5 else { return }
-        let fps = Double(frameCounter) / elapsed
-        frameCounter = 0
-        lastStatsTime = now
-        DispatchQueue.main.async { [stats] in
-            stats.fps = fps
-        }
     }
 }

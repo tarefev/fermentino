@@ -2,68 +2,51 @@
 //  MetalView.swift
 //  Fermentino
 //
-//  SwiftUI-обёртка над MTKView с обработкой касаний.
+//  SwiftUI-обёртка над MTKView: тап = выстрел в точку (как клик мышью в прототипе).
 //
 
 import SwiftUI
 import MetalKit
 
-struct MetalView: UIViewRepresentable {
-    @ObservedObject var stats: RendererStats
-    var resetToken: Int
+/// Связка игры и рендерера, живёт на уровне ContentView; HUD-кнопки ходят через неё.
+final class GameSession {
+    let hud = HUDModel()
+    private(set) var renderer: Renderer?
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func attach(_ view: MTKView) {
+        guard renderer == nil else { return }
+        renderer = Renderer(view: view, hud: hud)
+        view.delegate = renderer
     }
+
+    func press(_ key: HudKey) {
+        renderer?.game.press(key)
+    }
+}
+
+struct MetalView: UIViewRepresentable {
+    let session: GameSession
 
     func makeUIView(context: Context) -> TouchMTKView {
         let view = TouchMTKView(frame: .zero)
         view.framebufferOnly = true
         view.isMultipleTouchEnabled = false
-        guard let renderer = Renderer(view: view, stats: stats) else {
-            assertionFailure("Metal недоступен")
-            return view
-        }
-        context.coordinator.renderer = renderer
-        context.coordinator.resetToken = resetToken
-        view.delegate = renderer
-        view.onTouch = { [weak renderer, weak view] point in
-            guard let renderer, let view else { return }
-            renderer.setAttractor(screenPoint: point, in: view)
+        session.attach(view)
+        view.onTap = { [session] point, size in
+            guard let r = session.renderer else { return }
+            r.game.tap(at: point, viewSize: size, scale: r.scale)
         }
         return view
     }
 
-    func updateUIView(_ uiView: TouchMTKView, context: Context) {
-        guard context.coordinator.resetToken != resetToken else { return }
-        context.coordinator.resetToken = resetToken
-        context.coordinator.renderer?.reset()
-    }
-
-    final class Coordinator {
-        var renderer: Renderer?
-        var resetToken = 0
-    }
+    func updateUIView(_ uiView: TouchMTKView, context: Context) {}
 }
 
 final class TouchMTKView: MTKView {
-    var onTouch: ((CGPoint?) -> Void)?
+    var onTap: ((CGPoint, CGSize) -> Void)?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
-        onTouch?(t.location(in: self))
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = touches.first else { return }
-        onTouch?(t.location(in: self))
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        onTouch?(nil)
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        onTouch?(nil)
+        onTap?(t.location(in: self), bounds.size)
     }
 }

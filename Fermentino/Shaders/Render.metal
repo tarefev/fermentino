@@ -2,51 +2,94 @@
 //  Render.metal
 //  Fermentino
 //
-//  Инстансированный рендер кругов: один draw call, квад на тело,
-//  круг вырезается во фрагментном шейдере.
+//  Инстансированные фигуры (круг/кольцо/прямоугольник/свечение) и линии в экранных точках.
 //
 
 #include <metal_stdlib>
 #include "ShaderTypes.h"
 using namespace metal;
 
-struct VertexOut {
-    float4 position [[position]];
-    float2 local;
-    float speed;
-};
-
 constant float2 quadCorners[6] = {
     float2(-1.0, -1.0), float2( 1.0, -1.0), float2(-1.0,  1.0),
     float2( 1.0, -1.0), float2( 1.0,  1.0), float2(-1.0,  1.0)
 };
 
-vertex VertexOut bodyVertex(uint vid [[vertex_id]],
-                            uint iid [[instance_id]],
-                            device const float2 *positions  [[buffer(0)]],
-                            device const float2 *velocities [[buffer(1)]],
-                            constant SimParams &p           [[buffer(2)]])
-{
-    const float2 corner = quadCorners[vid];
-    const float2 world = positions[iid] + corner * p.radius * 1.15;
+struct ShapeOut {
+    float4 position [[position]];
+    float2 local;
+    float4 color;
+    float radius;
+    float inner;
+    float soft;
+    float2 halfSize;
+    uint shape;
+};
 
-    VertexOut out;
-    out.position = float4(world.x / p.aspect, world.y, 0.0, 1.0);
-    out.local = corner;
-    out.speed = length(velocities[iid]);
+inline float4 toNDC(float2 pt, constant FrameUniforms &u)
+{
+    float2 ndc = pt / u.viewSize * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    return float4(ndc, 0.0, 1.0);
+}
+
+vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
+                            uint iid [[instance_id]],
+                            device const ShapeInstance *inst [[buffer(0)]],
+                            constant FrameUniforms &u        [[buffer(1)]])
+{
+    const ShapeInstance s = inst[iid];
+    const float2 corner = quadCorners[vid];
+    float2 ext = float2(s.radius + 1.0);
+    if (s.shape == 1u) ext = s.halfSize;
+    const float2 local = corner * ext;
+
+    ShapeOut out;
+    out.position = toNDC(s.center + local, u);
+    out.local = local;
+    out.color = s.color;
+    out.radius = s.radius;
+    out.inner = s.inner;
+    out.soft = s.soft;
+    out.halfSize = s.halfSize;
+    out.shape = s.shape;
     return out;
 }
 
-fragment float4 bodyFragment(VertexOut in [[stage_in]])
+fragment float4 shapeFragment(ShapeOut in [[stage_in]])
 {
-    const float r = length(in.local);
-    const float edge = fwidth(r) * 1.5;
-    const float alpha = 1.0 - smoothstep(1.0 - edge, 1.0, r * 1.15);
-    if (alpha <= 0.0) discard_fragment();
+    float a = 1.0;
+    if (in.shape == 0u) {
+        const float d = length(in.local);
+        const float edge = max(fwidth(d), 0.5);
+        if (in.soft > 0.0) {
+            const float t = saturate(1.0 - d / in.radius);
+            a = t * t;
+        } else {
+            a = 1.0 - smoothstep(in.radius - edge, in.radius + edge, d);
+            if (in.inner > 0.0) a *= smoothstep(in.inner - edge, in.inner + edge, d);
+        }
+    }
+    const float alpha = in.color.a * a;
+    if (alpha <= 0.001) discard_fragment();
+    return float4(in.color.rgb * alpha, alpha);
+}
 
-    const float t = saturate(in.speed * 0.6);
-    const float3 slow = float3(0.25, 0.55, 1.0);
-    const float3 fast = float3(1.0, 0.85, 0.3);
-    const float3 color = mix(slow, fast, t);
-    return float4(color * alpha, alpha);
+struct LineOut {
+    float4 position [[position]];
+    float4 color;
+};
+
+vertex LineOut lineVertex(uint vid [[vertex_id]],
+                          device const LineVertex *verts [[buffer(0)]],
+                          constant FrameUniforms &u      [[buffer(1)]])
+{
+    LineOut out;
+    out.position = toNDC(verts[vid].pos, u);
+    out.color = verts[vid].color;
+    return out;
+}
+
+fragment float4 lineFragment(LineOut in [[stage_in]])
+{
+    return float4(in.color.rgb * in.color.a, in.color.a);
 }

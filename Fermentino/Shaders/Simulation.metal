@@ -2,166 +2,176 @@
 //  Simulation.metal
 //  Fermentino
 //
-//  Симуляция на GPU: попарная гравитация, предикт, расталкивание через
-//  хэш-сетку (position-based), восстановление скорости из смещения.
+//  Перенос computeForces/integrate из веб-прототипа один в один.
+//  Каждый поток считает силы на СВОЁ тело по всем остальным (симметричные формулы).
 //
 
 #include <metal_stdlib>
 #include "ShaderTypes.h"
 using namespace metal;
 
-constant uint TILE = 256;
+#define BODY_CORE   0u
+#define BODY_ATOM   1u
+#define BODY_ANCHOR 2u
+#define FLAG_CAPTURED 1u
 
-// MARK: - 1. Очистка сетки
-
-kernel void clearGrid(device atomic_uint *cellCounts [[buffer(0)]],
-                      constant SimParams &p        [[buffer(1)]],
-                      uint id [[thread_position_in_grid]])
+inline float wrapDelta(float d, float halfSize, float full)
 {
-    if (id >= p.gridDims.x * p.gridDims.y) return;
-    atomic_store_explicit(&cellCounts[id], 0u, memory_order_relaxed);
+    if (d > halfSize) return d - full;
+    if (d < -halfSize) return d + full;
+    return d;
 }
 
-// MARK: - 2. Гравитация «каждый с каждым», тайлинг через threadgroup-память
+inline float wrapAngle(float e) { return atan2(sin(e), cos(e)); }
 
-kernel void computeGravity(device const float2 *positions [[buffer(0)]],
-                           device float2 *accelerations    [[buffer(1)]],
-                           constant SimParams &p           [[buffer(2)]],
-                           uint id  [[thread_position_in_grid]],
-                           uint lid [[thread_position_in_threadgroup]])
+inline float gravTaper(float r, constant SimParams &p)
 {
-    threadgroup float2 tile[TILE];
+    if (r <= p.CUT_START) return 1.0;
+    if (r >= p.CUT_END) return 0.0;
+    const float t = (r - p.CUT_START) / (p.CUT_END - p.CUT_START);
+    return 1.0 - t * t * (3.0 - 2.0 * t);
+}
 
-    const bool active = id < p.bodyCount;
-    float2 pos = active ? positions[id] : float2(0.0);
+// §2: гравитация + отталкивание + липкость + валентные связи (длина, угол) + чёрная дыра
+kernel void computeForces(device const Body *bodies     [[buffer(0)]],
+                          device float2 *accel          [[buffer(1)]],
+                          device float *tqOut           [[buffer(2)]],
+                          device uint *nbrOut           [[buffer(3)]],
+                          device const int *bondSlot    [[buffer(4)]],
+                          device const float *bondK     [[buffer(5)]],
+                          device const float *bondLen   [[buffer(6)]],
+                          device const float *slots     [[buffer(7)]],
+                          constant SimParams &p         [[buffer(8)]],
+                          uint i [[thread_position_in_grid]])
+{
+    if (i >= p.bodyCount) return;
+
+    const Body A = bodies[i];
+    const float2 hw = p.worldSize * 0.5;
+    const float cutEnd2 = p.CUT_END * p.CUT_END;
+    const float instR2 = p.INSTAB_R * p.INSTAB_R;
+    const bool aCaptured = (A.flags & FLAG_CAPTURED) != 0;
+    const bool aAnchor = A.type == BODY_ANCHOR;
+    const bool aCore = A.type == BODY_CORE && i < p.coreCount;
+
+    // пузырь антиграва: объект внутри радиуса вокруг хоста (тело 0)
+    const float2 hostPos = bodies[0].pos;
+    bool aGb = false;
+    if (p.gravBubbleOn) {
+        const float gx = wrapDelta(A.pos.x - hostPos.x, hw.x, p.worldSize.x);
+        const float gy = wrapDelta(A.pos.y - hostPos.y, hw.y, p.worldSize.y);
+        aGb = gx * gx + gy * gy <= p.bubbleR2;
+    }
+
     float2 acc = float2(0.0);
+    float tq = 0.0;
+    uint nbr = 0;
 
-    const uint tileCount = (p.bodyCount + TILE - 1) / TILE;
-    for (uint t = 0; t < tileCount; ++t) {
-        const uint j = t * TILE + lid;
-        tile[lid] = (j < p.bodyCount) ? positions[j] : float2(0.0);
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint j = 0; j < p.bodyCount; ++j) {
+        if (j == i) continue;
+        const Body B = bodies[j];
+        if (aCaptured && (B.flags & FLAG_CAPTURED)) continue;   // молекула не взаимодействует сама с собой
 
-        const uint limit = min(TILE, p.bodyCount - t * TILE);
-        for (uint k = 0; k < limit; ++k) {
-            const float2 d = tile[k] - pos;
-            const float r2 = dot(d, d) + p.softening;
-            const float inv = rsqrt(r2);
-            acc += d * (inv * inv * inv);
+        const float dx = wrapDelta(B.pos.x - A.pos.x, hw.x, p.worldSize.x);
+        const float dy = wrapDelta(B.pos.y - A.pos.y, hw.y, p.worldSize.y);
+        float r2 = dx * dx + dy * dy;
+        if (r2 > cutEnd2) continue;
+        if (A.type == BODY_ATOM && B.type == BODY_ATOM && r2 < instR2) nbr++;
+        if (r2 < 1e-6) r2 = 1e-6;
+
+        const float r = sqrt(r2);
+        const float inv = 1.0 / r;
+        const float nx = dx * inv, ny = dy * inv;
+        const float mm = A.m * B.m;
+
+        bool bGb = false;
+        if (p.gravBubbleOn) {
+            const float gx = wrapDelta(B.pos.x - hostPos.x, hw.x, p.worldSize.x);
+            const float gy = wrapDelta(B.pos.y - hostPos.y, hw.y, p.worldSize.y);
+            bGb = gx * gx + gy * gy <= p.bubbleR2;
         }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
+        const float gOn = (p.gravBubbleOn && (aGb || bGb)) ? 0.0 : 1.0;
+        float fnet = gOn * p.G * mm / (r2 + p.EPS2) * gravTaper(r, p);
 
-    if (!active) return;
-
-    acc *= p.gravity;
-
-    if (p.attractorStrength > 0.0) {
-        const float2 d = p.attractor - pos;
-        const float r2 = dot(d, d) + p.softening * 16.0;
-        const float inv = rsqrt(r2);
-        acc += d * (inv * inv * inv) * p.attractorStrength;
-    }
-
-    accelerations[id] = acc;
-}
-
-// MARK: - 3. Предикт позиции и вставка в сетку
-
-inline uint2 cellOf(float2 pos, constant SimParams &p)
-{
-    const float2 local = (pos + p.worldHalf) / p.cellSize;
-    const int2 c = int2(floor(local));
-    return uint2(clamp(c.x, 0, int(p.gridDims.x) - 1),
-                 clamp(c.y, 0, int(p.gridDims.y) - 1));
-}
-
-kernel void integrate(device float2 *positions          [[buffer(0)]],
-                      device float2 *previousPositions  [[buffer(1)]],
-                      device float2 *velocities         [[buffer(2)]],
-                      device const float2 *accelerations [[buffer(3)]],
-                      device atomic_uint *cellCounts    [[buffer(4)]],
-                      device uint *cellItems            [[buffer(5)]],
-                      constant SimParams &p             [[buffer(6)]],
-                      uint id [[thread_position_in_grid]])
-{
-    if (id >= p.bodyCount) return;
-
-    float2 pos = positions[id];
-    float2 vel = velocities[id] + accelerations[id] * p.dt;
-    vel *= p.damping;
-
-    previousPositions[id] = pos;
-    pos += vel * p.dt;
-
-    // стены: отражаем скорость через позицию (PBD)
-    const float2 lim = p.worldHalf - p.radius;
-    pos = clamp(pos, -lim, lim);
-    positions[id] = pos;
-
-    const uint2 c = cellOf(pos, p);
-    const uint cell = c.y * p.gridDims.x + c.x;
-    const uint slot = atomic_fetch_add_explicit(&cellCounts[cell], 1u, memory_order_relaxed);
-    if (slot < p.cellCapacity) {
-        cellItems[cell * p.cellCapacity + slot] = id;
-    }
-}
-
-// MARK: - 4. Расталкивание по сетке (ping-pong позиций)
-
-kernel void resolveCollisions(device const float2 *positionsIn [[buffer(0)]],
-                              device float2 *positionsOut      [[buffer(1)]],
-                              device const atomic_uint *cellCounts [[buffer(2)]],
-                              device const uint *cellItems     [[buffer(3)]],
-                              constant SimParams &p            [[buffer(4)]],
-                              uint id [[thread_position_in_grid]])
-{
-    if (id >= p.bodyCount) return;
-
-    const float2 pos = positionsIn[id];
-    const float diameter = p.radius * 2.0;
-    const float diameter2 = diameter * diameter;
-    float2 correction = float2(0.0);
-
-    const uint2 c = cellOf(pos, p);
-    const int2 base = int2(c);
-
-    for (int dy = -1; dy <= 1; ++dy) {
-        const int cy = base.y + dy;
-        if (cy < 0 || cy >= int(p.gridDims.y)) continue;
-        for (int dx = -1; dx <= 1; ++dx) {
-            const int cx = base.x + dx;
-            if (cx < 0 || cx >= int(p.gridDims.x)) continue;
-
-            const uint cell = uint(cy) * p.gridDims.x + uint(cx);
-            const uint count = min(atomic_load_explicit(&cellCounts[cell], memory_order_relaxed),
-                                   p.cellCapacity);
-            for (uint s = 0; s < count; ++s) {
-                const uint j = cellItems[cell * p.cellCapacity + s];
-                if (j == id) continue;
-                const float2 d = pos - positionsIn[j];
-                const float r2 = dot(d, d);
-                if (r2 >= diameter2 || r2 < 1e-12) continue;
-                const float dist = sqrt(r2);
-                const float overlap = diameter - dist;
-                correction += d * (overlap * 0.5 / dist);
+        const float contact = A.r + B.r;
+        if (r < contact) {
+            const float mu = mm / (A.m + B.m);
+            fnet -= p.K_REP * mu * (contact - r);
+            if (!aAnchor && B.type != BODY_ANCHOR) {
+                const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
+                float stick = 1.0;
+                if (p.V_STICK > 0.0) stick = 1.0 - (1.0 - p.STICK_MIN) * exp(-abs(vn) / p.V_STICK);
+                fnet -= stick * mu * vn / p.hSub;
             }
         }
+
+        if (aCore && B.type == BODY_CORE && j < p.coreCount) {
+            const int sA = bondSlot[i * FERM_MAX_CORES + j];
+            if (sA >= 0) {
+                const int sB = bondSlot[j * FERM_MAX_CORES + i];
+                const float k = bondK[i * FERM_MAX_CORES + j];
+                const float len = bondLen[i * FERM_MAX_CORES + j];
+                const float L = contact * len;
+                const float mu = mm / (A.m + B.m);
+                const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
+                fnet += k * mu * (r - L) - p.BOND_DAMP * mu * vn;
+                const float phi = atan2(dy, dx);
+                const float eA = wrapAngle(phi - (A.ang + slots[i * FERM_MAX_SLOTS + sA]));
+                const float eB = wrapAngle(phi + M_PI_F - (B.ang + slots[j * FERM_MAX_SLOTS + sB]));
+                tq += eA;
+                const float px = -ny, py = nx;
+                const float vtB = (B.vel.x - A.vel.x) * px + (B.vel.y - A.vel.y) * py;
+                const float fB = -p.K_ANGLE * mu * (eA + eB) - p.BOND_DAMP * mu * vtB;
+                acc -= float2(px, py) * (fB / A.m);           // реакция на A (поперечная)
+            }
+        }
+
+        if (!aAnchor) acc += float2(nx, ny) * (fnet / A.m);
     }
 
-    const float2 lim = p.worldHalf - p.radius;
-    positionsOut[id] = clamp(pos + correction, -lim, lim);
+    // чёрная дыра в центре поглотителя (после победы)
+    if (p.zoneMass > 0.0 && !aAnchor && !aCaptured) {
+        const float dx = wrapDelta(p.zonePos.x - A.pos.x, hw.x, p.worldSize.x);
+        const float dy = wrapDelta(p.zonePos.y - A.pos.y, hw.y, p.worldSize.y);
+        float r2 = dx * dx + dy * dy;
+        if (r2 <= cutEnd2) {
+            if (r2 < 1e-6) r2 = 1e-6;
+            const float r = sqrt(r2), inv = 1.0 / r;
+            const float a = p.G * p.zoneMass / (r2 + p.EPS2) * gravTaper(r, p);
+            acc += float2(dx, dy) * (a * inv);
+        }
+    }
+
+    accel[i] = acc;
+    tqOut[i] = tq;
+    nbrOut[i] = nbr;
 }
 
-// MARK: - 5. Скорость из смещения за подшаг
-
-kernel void finalizeVelocity(device const float2 *positions         [[buffer(0)]],
-                             device const float2 *previousPositions [[buffer(1)]],
-                             device float2 *velocities              [[buffer(2)]],
-                             constant SimParams &p                  [[buffer(3)]],
-                             uint id [[thread_position_in_grid]])
+// §3: симплектик Эйлер-Кромер + вязкость + потолок скорости + ориентация ядер
+kernel void integrate(device Body *bodies           [[buffer(0)]],
+                      device const float2 *accel    [[buffer(1)]],
+                      device const float *tqIn      [[buffer(2)]],
+                      device const uint *nbrIn      [[buffer(3)]],
+                      constant SimParams &p         [[buffer(4)]],
+                      uint i [[thread_position_in_grid]])
 {
-    if (id >= p.bodyCount) return;
-    const float2 vel = (positions[id] - previousPositions[id]) / p.dt;
-    velocities[id] = vel * p.restitutionDamping;
+    if (i >= p.bodyCount) return;
+    Body o = bodies[i];
+    o.nbr = nbrIn[i];
+    o.tq = tqIn[i];
+    if (o.type != BODY_ANCHOR) {
+        const float h = p.hSub;
+        o.vel += accel[i] * h;
+        o.vel *= exp(-p.VISCOSITY * h);
+        const float s2 = dot(o.vel, o.vel);
+        const float cap2 = p.MAX_SPEED * p.MAX_SPEED;
+        if (s2 > cap2) o.vel *= p.MAX_SPEED / sqrt(s2);
+        o.pos += o.vel * h;
+        if (o.type == BODY_CORE) {
+            o.angVel += p.K_ANGLE_TORQUE * o.tq * h;
+            o.angVel *= max(0.0, 1.0 - p.ANG_DAMP * h);
+            o.ang += o.angVel * h;
+        }
+    }
+    bodies[i] = o;
 }
