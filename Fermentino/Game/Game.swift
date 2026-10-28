@@ -451,7 +451,8 @@ final class Game {
     private func doEject(_ best: Int, _ dxn: Float, _ dyn: Float) {
         bodies[best].heat = 1
         say("flight.moving")
-        let es = K.EJECT_SPEED * sqrt(1 + Float(yellowCount) * K.ENERGY_PER_YELLOW) * (K.EJECT_REF_MASS / bodies[best].m)
+        let ejectSpeed = round.ejectSpeed ?? K.EJECT_SPEED
+        let es = ejectSpeed * sqrt(1 + Float(yellowCount) * K.ENERGY_PER_YELLOW) * (K.EJECT_REF_MASS / bodies[best].m)
         if ejectMode == .intoCore {
             let ctr = mainCore
             let tx = dx(ctr.pos.x, bodies[best].pos.x), ty = dy(ctr.pos.y, bodies[best].pos.y)
