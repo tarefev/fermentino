@@ -494,18 +494,16 @@ final class Game {
         guard count < sim.capacity, let ni = elements["nitron"] else { return }
         let host = bodies[0]
         let a = rnd(0, .pi * 2)
-        let dir = SIMD2<Float>(cos(a), sin(a))
+        let dir = SIMD2<Float>(cos(a), sin(a))            // от хоста к точке старта
         let start = host.pos + dir * sp.distance
-        // упреждение: целимся туда, где хост будет к моменту прилёта
-        let flight = sp.distance / sp.speed
-        let target = host.pos + host.vel * flight
-        var aim = target - start
-        let aimLen = simd_length(aim); if aimLen < 1 { aim = -dir } else { aim /= aimLen }
-        let va = atan2(aim.y, aim.x) + rnd(-sp.spread, sp.spread)
+        // к хосту по радиусу + боковая составляющая → спираль; закрутка в случайную сторону
+        let tangent = SIMD2<Float>(-dir.y, dir.x)
+        let spin: Float = Bool.random() ? 1 : -1
+        let relVel = -dir * sp.radialSpeed + tangent * (sp.tangentSpeed * spin)
         var b = Body()
         b.type = BodyType.atom
         b.pos = SIMD2<Float>(Game.wrapCoord(start.x, K.WORLD_W), Game.wrapCoord(start.y, K.WORLD_H))
-        b.vel = SIMD2<Float>(cos(va), sin(va)) * sp.speed
+        b.vel = host.vel + relVel                            // относительно движущегося хоста
         b.m = ni.density * sp.r * sp.r
         b.r = sp.r
         bodies[count] = b

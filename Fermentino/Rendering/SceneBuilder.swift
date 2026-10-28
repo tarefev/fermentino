@@ -56,6 +56,16 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
+    private mutating func arrow(_ x: Float, _ y: Float, _ size: Float, angle: Float, _ color: SIMD4<Float>) {
+        var s = ShapeInstance()
+        s.center = SIMD2<Float>(x, y)
+        s.radius = size
+        s.halfSize = SIMD2<Float>(angle, 0)   // для стрелки: угол поворота
+        s.color = color
+        s.shape = 3
+        scene.shapes.append(s)
+    }
+
     private mutating func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float, _ color: SIMD4<Float>) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x + w / 2, y + h / 2)
@@ -214,17 +224,12 @@ struct SceneBuilder {
             let mmX = w - mmS - 12, mmY = h - mmS - 34
             if tip.x > mmX - 18 && tip.y > mmY - 18 { tip.y = mmY - 18 }
         }
-        let pulse = 0.6 + 0.4 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))
-        let col = rgba(190, 140, 255, 0.9 * pulse)
-        let size: Float = 14
-        let side = SIMD2<Float>(-dir.y, dir.x)
-        let base = tip - dir * size
-        let l = base + side * (size * 0.55), r = base - side * (size * 0.55)
-        line(tip.x, tip.y, l.x, l.y, col)
-        line(tip.x, tip.y, r.x, r.y, col)
-        line(l.x, l.y, r.x, r.y, col)
-        let shaft = base - dir * (size * 0.6)
-        line(base.x, base.y, shaft.x, shaft.y, col)
+        let pulse = 0.5 + 0.5 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))
+        let ang = atan2(dir.y, dir.x)
+        let size: Float = 11
+        let center = tip - dir * (size * 0.3)
+        circle(center.x, center.y, size * 2.2, rgba(175, 115, 255, 0.22 * pulse), soft: 1)   // свечение
+        arrow(center.x, center.y, size, angle: ang, rgba(205, 170, 255, 0.85 * pulse))
     }
 
     private mutating func buildMinimap(cam: SIMD2<Float>) {

@@ -58,9 +58,9 @@ enum WinKind: String {
 /// Приток инертонов с края экрана в сторону хоста (обучающие туры).
 struct SpawnerDef {
     var interval: Float     // с между прилётами
-    var speed: Float        // стартовая скорость, ед/с
     var distance: Float     // откуда вылетает: расстояние от хоста
-    var spread: Float       // разброс направления, рад
+    var radialSpeed: Float  // скорость к хосту, ед/с
+    var tangentSpeed: Float // боковая скорость, ед/с → выход на спираль вокруг хоста (знак случайный)
     var r: Float            // радиус инертона
 }
 
@@ -122,7 +122,7 @@ enum Rounds {
             winSub: "win.flight",
             narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 2.5, speed: 300, distance: 620, spread: 0, r: 6),   // точно в корабль, с упреждением
+            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 100, tangentSpeed: 45, r: 6),   // ~5 оборотов по спирали до касания
             zoneDistance: 1200
         ),
         RoundDef(

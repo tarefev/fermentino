@@ -56,6 +56,7 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
     const float2 corner = quadCorners[vid];
     float2 ext = float2(s.radius + 1.0);
     if (s.shape == 1u) ext = s.halfSize;
+    if (s.shape == 3u) ext = float2(s.radius + 2.0);
     const float2 local = corner * ext;
 
     ShapeOut out;
@@ -73,7 +74,18 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
 fragment float4 shapeFragment(ShapeOut in [[stage_in]])
 {
     float a = 1.0;
-    if (in.shape == 2u) {
+    if (in.shape == 3u) {
+        // стрелка: остриё в +x локальной системы, повёрнутой на угол halfSize.x
+        const float ang = in.halfSize.x;
+        const float c = cos(ang), s = sin(ang);
+        const float2 p = float2(c * in.local.x + s * in.local.y, -s * in.local.x + c * in.local.y);
+        const float r = in.radius;
+        const float back = -0.7 * r;                       // основание
+        const float halfW = 0.6 * r * (r - p.x) / (r - back); // полуширина в точке p.x
+        const float d = max(max(back - p.x, p.x - r), abs(p.y) - halfW);
+        const float edge = max(fwidth(d), 0.5);
+        a = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape == 2u) {
         // звезда остриём вверх (экранный y вниз → переворачиваем)
         const float d = sdStar5(float2(in.local.x, -in.local.y), in.radius, in.inner);
         const float edge = max(fwidth(d), 0.5);
