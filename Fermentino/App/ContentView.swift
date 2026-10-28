@@ -29,6 +29,7 @@ struct ContentView: View {
             }
         } else {
             gameScreen
+                .onAppear { session.onRestartToStory = { showPrologue = true } }
         }
     }
 

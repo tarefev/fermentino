@@ -12,6 +12,7 @@ import MetalKit
 final class GameSession {
     let hud = HUDModel()
     private(set) var renderer: Renderer?
+    var onRestartToStory: (() -> Void)?
 
     func attach(_ view: MTKView) {
         guard renderer == nil else { return }
@@ -21,6 +22,14 @@ final class GameSession {
 
     func press(_ key: HudKey) {
         renderer?.game.press(key)
+    }
+
+    /// Тест: вернуться к самому началу истории — пролог, затем тур 1 с нуля.
+    func restartToStory() {
+        Progress.roundIndex = 0
+        Progress.prologueSeen = false
+        renderer = nil                 // игра и GPU-буферы создадутся заново после пролога
+        onRestartToStory?()
     }
 }
 
@@ -37,7 +46,7 @@ struct MetalView: UIViewRepresentable {
             r.game.tap(at: point, viewSize: size, scale: r.scale)
         }
         view.onLongPress = { [session] in
-            session.press(.restart)      // тест: долгое нажатие 2 с = рестарт текущего тура
+            session.restartToStory()     // тест: долгое нажатие 2 с = к началу истории
         }
         return view
     }
