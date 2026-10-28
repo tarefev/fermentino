@@ -514,6 +514,7 @@ final class Game {
         guard let sp = round.spawner, !winning else { return }
         spawnTimer += dt
         if spawnTimer < sp.interval { return }
+        if introT < sp.firstDelay { return }          // пауза перед первым прилётом
         spawnTimer -= sp.interval
         guard count < sim.capacity, let ni = elements["nitron"] else { return }
         let host = bodies[0]

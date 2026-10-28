@@ -18,11 +18,11 @@ enum Strings {
         "win.flight": "никто не погиб. наверное.",
         "intro.molecule.1": "СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ",
         "intro.molecule.2": "ЕГО В ПОГЛОТИТЕЛЬ",
-        "flight.start": "Юрик! Конечно взорвалось, это ЭКСПЕРИМЕНТ! Никто не погиб. Наверное. Дуй к поглотителю!",
-        "flight.incoming": "Товарищ Гагарин! Летит инертон. НИЧЕГО НЕ ТРОГАЙ.",
-        "flight.caught": "Прилип. Теперь выкинь его в другую сторону. Отдача, Юрик! Ньютон! Третий класс!",
-        "flight.moving": "Поехал! Я гений. Давай, товарищ.",
-        "flight.done": "Втянуло. Никому ни слова, Юрик. Рюмка «Сталичной». Для нервов.",
+        "flight.start": "Юрик! Взорвалось. Это ЭКСПЕРИМЕНТ. Дуй к поглотителю!",
+        "flight.incoming": "Товарищ Гагарин! Летит инертон. НЕ ТРОГАЙ.",
+        "flight.caught": "Прилип. Кинь его в другую сторону. Отдача, Юрик! Ньютон!",
+        "flight.moving": "Поехал! Я гений.",
+        "flight.done": "Втянуло. Никому ни слова, Юрик. Рюмка «Сталичной».",
     ]
 
     private static let en: [String: String] = [
@@ -34,11 +34,11 @@ enum Strings {
         "win.flight": "nobody died. probably.",
         "intro.molecule.1": "ASSEMBLE THIS FERMENT AND BRING IT",
         "intro.molecule.2": "TO THE ABSORBER",
-        "flight.start": "Yurik! Of course it blew up, it's an EXPERIMENT! Nobody died. Probably. Get to the absorber!",
-        "flight.incoming": "Comrade Gagarin! That thing flying at you is an inerton. DON'T TOUCH ANYTHING.",
-        "flight.caught": "It stuck. Now throw it the other way. Recoil, Yurik! Newton! Third grade!",
-        "flight.moving": "You're moving! I'm a genius. Keep going, comrade.",
-        "flight.done": "It took you. Not a word to ANYONE, Yurik. One shot of Stolee. For the nerves.",
+        "flight.start": "Yurik! It blew up. It's an EXPERIMENT. Get to the absorber!",
+        "flight.incoming": "Comrade Gagarin! Inerton incoming. DON'T TOUCH IT.",
+        "flight.caught": "It stuck. Throw it the other way. Recoil, Yurik! Newton!",
+        "flight.moving": "You're moving! I'm a genius.",
+        "flight.done": "It took you. Not a word, Yurik. One shot of Stolee.",
     ]
 
     /// Пока игра целиком на английском (продаём американцам); русский в таблице — задел на локализацию.
