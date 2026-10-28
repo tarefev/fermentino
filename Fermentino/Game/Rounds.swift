@@ -141,7 +141,7 @@ enum Rounds {
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
             dust: DustDef(n: 200, rMin: 2, rMax: 4, density: 45, minHostDist: 400, avoidZone: true,
-                          explode: ExplodeDef(max: 7, r: 35, speed: 4000, burst: 4, rate: 3, rateRef: 8))   // тяжёлые, редкие, вдали от хоста; ком ≥7 соседей взрывается, чаще
+                          explode: ExplodeDef(max: 9, r: 35, speed: 4000, burst: 4, rate: 1, rateRef: 12))   // тяжёлые, редкие, вдали от хоста; ком ≥9 соседей взрывается, нечасто
         ),
         RoundDef(
             id: "star", win: .star,
