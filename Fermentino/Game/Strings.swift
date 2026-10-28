@@ -4,7 +4,8 @@
 //
 //  Таблица строк: ключ → текст на языке устройства (en по умолчанию, ru если система русская).
 //  Весь игровой текст (реплики, баннеры) — только отсюда.
-//  Имена: только Юрик / Юрий Алексеевич и Сергей Павлович. Фамилии (Гагарин, Королёв) в тексте не звучат.
+//  Имена: Юрик и Сергей Павлович. Фамилии (Гагарин, Королёв) в тексте не звучат.
+//  «Юрий Алексеевич» — только для торжественных случаев (награда), не когда на него орут.
 //
 
 import Foundation
@@ -20,7 +21,7 @@ enum Strings {
         "intro.molecule.1": "СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ",
         "intro.molecule.2": "ЕГО В ПОГЛОТИТЕЛЬ",
         "flight.start": "Юрик! Взорвалось. Это ЭКСПЕРИМЕНТ. Дуй к поглотителю!",
-        "flight.incoming": "Юрий Алексеевич! Летит инертон. НЕ ТРОГАЙ.",
+        "flight.incoming": "Юрик! Летит инертон. НЕ ТРОГАЙ.",
         "flight.caught": "Прилип. Кинь его в другую сторону. Отдача, Юрик! Ньютон!",
         "flight.moving": "Поехал! Я гений.",
         "flight.done": "Втянуло. Никому ни слова, Юрик. Рюмка «Сталичной».",
@@ -36,7 +37,7 @@ enum Strings {
         "intro.molecule.1": "ASSEMBLE THIS FERMENT AND BRING IT",
         "intro.molecule.2": "TO THE ABSORBER",
         "flight.start": "Yurik! It blew up. It's an EXPERIMENT. Get to the absorber!",
-        "flight.incoming": "Yuri Alekseyevich! Inerton incoming. DON'T TOUCH IT.",
+        "flight.incoming": "Yurik! Inerton incoming. DON'T TOUCH IT.",
         "flight.caught": "It stuck. Throw it the other way. Recoil, Yurik! Newton!",
         "flight.moving": "You're moving! I'm a genius.",
         "flight.done": "It took you. Not a word, Yurik. One shot of Stolee.",
