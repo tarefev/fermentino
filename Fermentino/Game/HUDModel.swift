@@ -35,4 +35,9 @@ final class HUDModel {
     var ejectModeName = "opposite"
     var showBonds = true
     var winKind: WinKind = .star
+    var introLines: [String] = []
+    var introIcon = true
+    var winSub = ""
+    var hasNext = false
+    var controls = RoundControls()
 }

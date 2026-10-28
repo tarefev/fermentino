@@ -58,7 +58,7 @@ enum EjectMode: String {
 
 enum HudKey {
     case massUp, massDown, gravRight, gravLeft, valenceDown, valenceUp
-    case toggleDebug, toggleEjectMode, toggleBonds, restart
+    case toggleDebug, toggleEjectMode, toggleBonds, restart, nextRound
 }
 
 final class Game {
@@ -70,7 +70,8 @@ final class Game {
     var bodies: UnsafeMutablePointer<Body> { sim.bodies }
 
     // ---- раунд
-    private(set) var round: RoundDef = Rounds.all[Rounds.ROUND]
+    private(set) var round: RoundDef = Rounds.all[Progress.roundIndex]
+    private var spawnTimer: Float = 0
     private var elements: [String: ElementDef] = [:]
     private var interactIndex: [String: InteractionDef] = [:]
 
@@ -247,9 +248,10 @@ final class Game {
     }
 
     func setup() {
-        round = Rounds.all[Rounds.ROUND]
+        round = Rounds.all[Progress.roundIndex]
         elements = round.elements
         interactIndex = round.interactIndex()
+        spawnTimer = 0
 
         count = 0
         cores = []
@@ -257,7 +259,18 @@ final class Game {
         won = false; winning = false; winMol = []; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []
         hud.showWin = false
         hud.winKind = round.win
+        hud.introLines = round.intro
+        hud.introIcon = round.introIcon
+        hud.winSub = round.winSub
+        hud.hasNext = Progress.hasNext
+        hud.controls = round.controls
         zone = Zone(x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), r: 130, m: 0)
+        if let d = round.zoneDistance {
+            // поглотитель на заданном расстоянии от старта хоста, направление случайное
+            let a = rnd(0, .pi * 2)
+            zone.x = Game.wrapCoord(Game.HALF_W + cos(a) * d, K.WORLD_W)
+            zone.y = Game.wrapCoord(Game.HALF_H + sin(a) * d, K.WORLD_H)
+        }
 
         var pending: [(Body, CoreInfo)] = []
         pending.append(makeCore("host", x: Game.HALF_W, y: Game.HALF_H, main: true))
@@ -434,6 +447,29 @@ final class Game {
         ejectQueue.removeAll(keepingCapacity: true)
     }
 
+    // MARK: - Приток инертонов (обучающие туры)
+
+    private func runSpawner(_ dt: Float) {
+        guard let sp = round.spawner, !winning else { return }
+        spawnTimer += dt
+        if spawnTimer < sp.interval { return }
+        spawnTimer -= sp.interval
+        guard count < sim.capacity, let ni = elements["nitron"] else { return }
+        let host = bodies[0]
+        let a = rnd(0, .pi * 2)
+        let dir = SIMD2<Float>(cos(a), sin(a))
+        let va = a + .pi + rnd(-sp.spread, sp.spread)        // к хосту с разбросом
+        var b = Body()
+        b.type = BodyType.atom
+        b.pos = SIMD2<Float>(Game.wrapCoord(host.pos.x + dir.x * sp.distance, K.WORLD_W),
+                             Game.wrapCoord(host.pos.y + dir.y * sp.distance, K.WORLD_H))
+        b.vel = SIMD2<Float>(cos(va), sin(va)) * sp.speed
+        b.m = ni.density * sp.r * sp.r
+        b.r = sp.r
+        bodies[count] = b
+        count += 1
+    }
+
     // MARK: - «Свои» (§5/§7) и нестабильность
 
     func updateMine() {
@@ -520,6 +556,7 @@ final class Game {
         }
         updateMine()
         applyInstability(dt)
+        runSpawner(dt)
     }
 
     // MARK: - Победа
@@ -568,6 +605,21 @@ final class Game {
 
     private func checkWin() {
         if won || winning { assembled = false; return }
+        if round.win == .reachZone {
+            // обучение: хост долетел до поглотителя → всасывается сам
+            assembled = false
+            if !inZone(0) { return }
+            winning = true
+            zone.bhT = 0
+            winMol = [0]
+            bodies[0].flags |= BodyFlag.captured | BodyFlag.molCore
+            bodies[0].r0 = bodies[0].r
+            bodies[0].cap = 0
+            bodies[0].vel = .zero
+            cores[0].bonds = [:]
+            cores[0].slots = []
+            return
+        }
         guard let mol = findMolecule() else { assembled = false; return }
         assembled = true
         if !mol.allSatisfy({ inZone($0) }) { return }
@@ -718,6 +770,9 @@ final class Game {
         case .toggleEjectMode: ejectMode = ejectMode == .intoCore ? .opposite : .intoCore
         case .toggleBonds: showBonds.toggle()
         case .restart: setup()
+        case .nextRound:
+            if Progress.hasNext { Progress.roundIndex += 1 }
+            setup()
         }
     }
 }

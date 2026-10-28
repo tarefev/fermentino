@@ -188,8 +188,37 @@ struct SceneBuilder {
             circle(pp.x, pp.y, (2 + 3 * (1 - p.life)) * scale, rgba(150, 220, 255, 0.5 * p.life))
         }
 
+        buildZoneArrow(zp: zp)
         buildMinimap(cam: cam)
         return scene
+    }
+
+    /// Стрелка на краю экрана в сторону поглотителя (если он не виден).
+    private mutating func buildZoneArrow(zp: SIMD2<Float>) {
+        let margin: Float = 28
+        let inside = zp.x > margin && zp.x < w - margin && zp.y > margin + 150 && zp.y < h - margin
+        if inside { return }
+        let d = zp - SIMD2<Float>(cx, cy)
+        let len = simd_length(d)
+        if len < 1 { return }
+        let dir = d / len
+        // точка на прямоугольнике отступа, по лучу из центра
+        let halfW = cx - margin, halfH = cy - margin
+        var t = Float.infinity
+        if abs(dir.x) > 1e-4 { t = min(t, halfW / abs(dir.x)) }
+        if abs(dir.y) > 1e-4 { t = min(t, halfH / abs(dir.y)) }
+        let tip = SIMD2<Float>(cx, cy) + dir * t
+        let pulse = 0.6 + 0.4 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))
+        let col = rgba(190, 140, 255, 0.9 * pulse)
+        let size: Float = 14
+        let side = SIMD2<Float>(-dir.y, dir.x)
+        let base = tip - dir * size
+        let l = base + side * (size * 0.55), r = base - side * (size * 0.55)
+        line(tip.x, tip.y, l.x, l.y, col)
+        line(tip.x, tip.y, r.x, r.y, col)
+        line(l.x, l.y, r.x, r.y, col)
+        let shaft = base - dir * (size * 0.6)
+        line(base.x, base.y, shaft.x, shaft.y, col)
     }
 
     private mutating func buildMinimap(cam: SIMD2<Float>) {
@@ -201,12 +230,7 @@ struct SceneBuilder {
         let mmY: Float = phone ? h - mmS - 34 : 12
         let mmc = mmX + mmS / 2, mmm = mmY + mmS / 2
         let sc = mmS / K.WORLD_W
-        rect(mmX, mmY, mmS, mmS, rgba(5, 8, 14, 0.62))
-        let border = rgba(120, 150, 200, 0.4)
-        line(mmX, mmY, mmX + mmS, mmY, border)
-        line(mmX + mmS, mmY, mmX + mmS, mmY + mmS, border)
-        line(mmX + mmS, mmY + mmS, mmX, mmY + mmS, border)
-        line(mmX, mmY + mmS, mmX, mmY, border)
+        rect(mmX, mmY, mmS, mmS, rgba(5, 8, 14, 0.45))   // без обрамления: только лёгкое затемнение
 
         let zone = game.zone
         let zr = max(3, zone.r * sc)

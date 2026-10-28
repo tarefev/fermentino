@@ -52,6 +52,26 @@ struct InteractionDef {
 enum WinKind: String {
     case star
     case benzene
+    case reachZone      // хост долетел до поглотителя
+}
+
+/// Приток инертонов с края экрана в сторону хоста (обучающие туры).
+struct SpawnerDef {
+    var interval: Float     // с между прилётами
+    var speed: Float        // стартовая скорость, ед/с
+    var distance: Float     // откуда вылетает: расстояние от хоста
+    var spread: Float       // разброс направления, рад
+    var r: Float            // радиус инертона
+}
+
+/// Какие рычаги и строки HUD включены в туре.
+struct RoundControls {
+    var hud = true          // служебные тексты вообще (HUD сверху, подсказка снизу)
+    var valence = true      // A/S
+    var mass = true         // E/R
+    var gravity = true      // Q/W
+    var toggles = true      // L/D/B
+    var molecule = true     // связей / сцеплений / фермент
 }
 
 struct RoundDef {
@@ -60,6 +80,12 @@ struct RoundDef {
     var spawn: [(id: String, n: Int)]
     var elements: [String: ElementDef]
     var interactions: [InteractionDef]
+    var intro: [String] = ["СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ", "ЕГО В ПОГЛОТИТЕЛЬ"]
+    var introIcon = true            // рисовать целевую молекулу в интро
+    var winSub = "фермент собран и поглощён"
+    var controls = RoundControls()
+    var spawner: SpawnerDef? = nil  // приток инертонов вместо разбросанных по карте
+    var zoneDistance: Float? = nil  // поглотитель на этом расстоянии от старта (nil = случайно по карте)
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -78,10 +104,25 @@ struct RoundDef {
 enum Rounds {
     static let INTERACT_DEFAULT = InteractionDef(a: "", b: "", k: 400, len: 4, breakStretch: 1.2, breakVel: 600)
 
-    /// 0 = звезда (хаб + 3 кэпа), 1 = бензол (кольцо 6 хабов + 6 кэпов)
-    static let ROUND = 1
-
+    /// Порядок туров: 0 = полёт (обучение), 1 = звезда (хаб + 3 кэпа), 2 = бензол (кольцо 6 хабов + 6 кэпов)
     static let all: [RoundDef] = [
+        RoundDef(
+            id: "flight", win: .reachZone,
+            spawn: [],
+            elements: [
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 0, kAngle: 300, control: "player", emblem: "ussr"),
+                "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
+                                     groups: [],
+                                     explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
+            ],
+            interactions: [],
+            intro: ["Чёрт тебя дери, доплыви до поглотителя.", "Это была случайность."],
+            introIcon: false,
+            winSub: "ты долетел",
+            controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
+            spawner: SpawnerDef(interval: 2.5, speed: 300, distance: 620, spread: 0.25, r: 6),
+            zoneDistance: 1200
+        ),
         RoundDef(
             id: "star", win: .star,
             spawn: [("trigen", 2), ("capsor", 5)],

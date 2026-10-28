@@ -26,13 +26,15 @@ struct ContentView: View {
                 .ignoresSafeArea()
             ZoneLabel(hud: session.hud)
                 .ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HUDView(hud: session.hud, session: session)
-                Spacer()
-                HelpView()
+            if session.hud.controls.hud {
+                VStack(alignment: .leading, spacing: 0) {
+                    HUDView(hud: session.hud, session: session)
+                    Spacer()
+                    HelpView()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
             IntroView(hud: session.hud)
             WinView(hud: session.hud, session: session)
         }
@@ -49,41 +51,56 @@ private struct HUDView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
+            let c = hud.controls
             HStack(spacing: 0) {
                 Text("Тесей").foregroundStyle(hudBold).bold()
                 sep(); label("время "); value(hud.time)
                 sep(); label("скорость "); value("\(hud.speed)")
-                sep(); label("связей "); value("\(hud.bonds)")
+                if c.molecule { sep(); label("связей "); value("\(hud.bonds)") }
             }
-            HStack(spacing: 0) {
-                label("валентность "); value("\(hud.valence)"); label(" ")
-                key("A") { session.press(.valenceDown) }; label("/"); key("S") { session.press(.valenceUp) }
-                sep(); label("масса "); value("\(hud.mass)"); label("/\(Int(K.MASS_MAX)) ")
-                key("E") { session.press(.massDown) }; label("/"); key("R") { session.press(.massUp) }
+            if c.valence || c.mass {
+                HStack(spacing: 0) {
+                    if c.valence {
+                        label("валентность "); value("\(hud.valence)"); label(" ")
+                        key("A") { session.press(.valenceDown) }; label("/"); key("S") { session.press(.valenceUp) }
+                    }
+                    if c.valence && c.mass { sep() }
+                    if c.mass {
+                        label("масса "); value("\(hud.mass)"); label("/\(Int(K.MASS_MAX)) ")
+                        key("E") { session.press(.massDown) }; label("/"); key("R") { session.press(.massUp) }
+                    }
+                }
             }
-            HStack(spacing: 0) {
-                label("гравитация: ")
-                Text(hud.gravName).foregroundStyle(hud.gravIsNorm ? hudBold : hudBlue)
-                label(" ")
-                key("Q") { session.press(.gravLeft) }; label("/"); key("W") { session.press(.gravRight) }
+            if c.gravity {
+                HStack(spacing: 0) {
+                    label("гравитация: ")
+                    Text(hud.gravName).foregroundStyle(hud.gravIsNorm ? hudBold : hudBlue)
+                    label(" ")
+                    key("Q") { session.press(.gravLeft) }; label("/"); key("W") { session.press(.gravRight) }
+                }
             }
             HStack(spacing: 0) {
                 label("инертонов "); value("\(hud.mine)")
-                sep(); label("верных сцеплений фермента "); value("\(hud.goodBonds)/\(K.N_CAP)")
+                if c.molecule { sep(); label("верных сцеплений фермента "); value("\(hud.goodBonds)/\(K.N_CAP)") }
             }
-            HStack(spacing: 0) {
-                label("фермент: ")
-                molStatus
+            if c.molecule {
+                HStack(spacing: 0) {
+                    label("фермент: ")
+                    molStatus
+                }
             }
             if hud.showDebug {
                 Text(hud.debugLine1).foregroundStyle(hudDim)
                 Text(hud.debugLine2).foregroundStyle(hudDim)
             }
             HStack(spacing: 0) {
-                key("L") { session.press(.toggleBonds) }; dim(" связи")
-                sep(); key("D") { session.press(.toggleDebug) }; dim(" отладка")
-                sep(); key("B") { session.press(.toggleEjectMode) }; dim(" выброс")
-                sep(); key("⌫") { session.press(.restart) }; dim(" рестарт")
+                if c.toggles {
+                    key("L") { session.press(.toggleBonds) }; dim(" связи")
+                    sep(); key("D") { session.press(.toggleDebug) }; dim(" отладка")
+                    sep(); key("B") { session.press(.toggleEjectMode) }; dim(" выброс")
+                    sep()
+                }
+                key("⌫") { session.press(.restart) }; dim(" рестарт")
             }
             .padding(.top, 3)
         }
@@ -140,22 +157,24 @@ private struct IntroView: View {
 
     var body: some View {
         if hud.introOpacity > 0 {
-            VStack(spacing: 2) {
-                Text("СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ")
-                Text("ЕГО В ПОГЛОТИТЕЛЬ")
-                MoleculeIcon(kind: hud.winKind)
-                    .frame(width: 120, height: 110)
+            VStack(spacing: 6) {
+                ForEach(Array(hud.introLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                }
+                if hud.introIcon {
+                    MoleculeIcon(kind: hud.winKind)
+                        .frame(width: 120, height: 110)
+                        .padding(.top, 8)
+                }
             }
-            .font(.system(size: 15, weight: .bold, design: .monospaced))
+            .font(.system(size: 17, weight: .bold, design: .monospaced))
+            .multilineTextAlignment(.center)
             .foregroundStyle(hudText)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(width: 370)
-            .background(Color(red: 8 / 255, green: 10 / 255, blue: 16 / 255).opacity(0.72))
-            .overlay(Rectangle().stroke(Color(red: 120 / 255, green: 150 / 255, blue: 200 / 255).opacity(0.35), lineWidth: 1))
+            .shadow(color: .black, radius: 6, y: 2)
+            .padding(.horizontal, 24)
             .opacity(hud.introOpacity)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.top, 150)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .offset(y: -140)
             .allowsHitTesting(false)
         }
     }
@@ -228,13 +247,13 @@ private struct WinView: View {
                     .kerning(3)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text("фермент собран и поглощён")
+                Text(hud.winSub)
                     .font(.system(size: 15, design: .monospaced))
                     .foregroundStyle(hudText)
                 Button {
-                    session.press(.restart)
+                    if hud.hasNext { session.press(.nextRound) } else { session.press(.restart) }
                 } label: {
-                    Text("Рестарт ⟳")
+                    Text(hud.hasNext ? "Дальше →" : "Рестарт ⟳")
                         .font(.system(size: 16, design: .monospaced))
                         .foregroundStyle(Color(red: 0x0a / 255, green: 0x07 / 255, blue: 0x10 / 255))
                         .padding(.horizontal, 30)
