@@ -74,6 +74,7 @@ struct DustDef {
     var density: Float      // масса = density·r²
     var minHostDist: Float = 0   // не рождать ближе к хосту
     var avoidZone = false        // не рождать в поглотителе
+    var explode: ExplodeDef? = nil   // нестабильность плотного кома пыли (как у инертонов)
 }
 
 /// Какие рычаги и строки HUD включены в туре.
@@ -139,7 +140,8 @@ enum Rounds {
             spawner: SpawnerDef(interval: 3.0, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
-            dust: DustDef(n: 200, rMin: 2, rMax: 4, density: 45, minHostDist: 400, avoidZone: true)   // тяжёлые, редкие, вдали от хоста
+            dust: DustDef(n: 200, rMin: 2, rMax: 4, density: 45, minHostDist: 400, avoidZone: true,
+                          explode: ExplodeDef(max: 12, r: 35, speed: 4000, burst: 6, rate: 2, rateRef: 12))   // тяжёлые, редкие, вдали от хоста; ком ≥12 соседей взрывается
         ),
         RoundDef(
             id: "star", win: .star,

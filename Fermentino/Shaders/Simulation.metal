@@ -77,7 +77,11 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         const float dy = wrapDelta(B.pos.y - A.pos.y, hw.y, p.worldSize.y);
         float r2 = dx * dx + dy * dy;
         if (r2 > cutEnd2) continue;
-        if (A.type == BODY_ATOM && B.type == BODY_ATOM && r2 < instR2) nbr++;
+        if (r2 < instR2) {
+            // соседи нестабильности: инертон считает инертоны; пыль считает пыль и инертоны
+            if (A.type == BODY_ATOM && B.type == BODY_ATOM) nbr++;
+            if (A.type == BODY_DUST && (B.type == BODY_DUST || B.type == BODY_ATOM)) nbr++;
+        }
         if (r2 < 1e-6) r2 = 1e-6;
 
         const float r = sqrt(r2);

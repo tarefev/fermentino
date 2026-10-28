@@ -586,9 +586,14 @@ final class Game {
     var explode: ExplodeDef { elements["nitron"]?.explode ?? ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16) }
 
     private func applyInstability(_ dt: Float) {
-        let ex = explode
+        burst(type: BodyType.atom, ex: explode, dt: dt)
+        if let dex = round.dust?.explode { burst(type: BodyType.dust, ex: dex, dt: dt) }
+    }
+
+    /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
+    private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
         var eligible: [Int] = []
-        for o in 0..<count where bodies[o].type == BodyType.atom && Int(bodies[o].nbr) >= ex.max { eligible.append(o) }
+        for o in 0..<count where bodies[o].type == type && Int(bodies[o].nbr) >= ex.max { eligible.append(o) }
         if eligible.count < ex.burst { return }
         var expected = ex.rate * dt * (Float(eligible.count) / ex.rateRef)
         while expected > 0 {

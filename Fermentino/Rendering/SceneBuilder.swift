@@ -97,7 +97,10 @@ struct SceneBuilder {
         let r = o.r * scale
 
         if o.type == BodyType.dust {
-            circle(p.x, p.y, r, rgba(138, 160, 189, 0.55))
+            var t: Float = 0
+            if let dex = game.round.dust?.explode { t = min(1, Float(o.nbr) / Float(dex.max)) }
+            var col = mixCol(K.COL_ATOM, max(o.heat, t)); col.w = 0.7
+            circle(p.x, p.y, r, col)
             return
         }
         if o.type == BodyType.anchor {
