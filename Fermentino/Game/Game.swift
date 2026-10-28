@@ -367,11 +367,22 @@ final class Game {
 
         // пыль: мелкие тела случайного размера по всему миру, те же законы, но не инертоны
         if let d = round.dust {
+            let host = bodies[0]
             for _ in 0..<d.n {
                 guard count < sim.capacity else { break }
+                var pos = SIMD2<Float>(rnd(0, K.WORLD_W), rnd(0, K.WORLD_H))
+                var tries = 0
+                while tries < 50 {
+                    let dh = hypot(dx(pos.x, host.pos.x), dy(pos.y, host.pos.y))
+                    let dz = hypot(dx(pos.x, zone.x), dy(pos.y, zone.y))
+                    let okHost = dh >= d.minHostDist
+                    let okZone = !d.avoidZone || dz > zone.r + 20
+                    if okHost && okZone { break }
+                    pos = SIMD2<Float>(rnd(0, K.WORLD_W), rnd(0, K.WORLD_H)); tries += 1
+                }
                 var b = Body()
                 b.type = BodyType.dust
-                b.pos = SIMD2<Float>(rnd(0, K.WORLD_W), rnd(0, K.WORLD_H))
+                b.pos = pos
                 b.vel = SIMD2<Float>(rnd(-K.START_SPEED, K.START_SPEED), rnd(-K.START_SPEED, K.START_SPEED))
                 b.r = rnd(d.rMin, d.rMax)
                 b.m = d.density * b.r * b.r

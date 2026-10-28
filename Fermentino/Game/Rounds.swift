@@ -72,6 +72,8 @@ struct DustDef {
     var rMin: Float
     var rMax: Float
     var density: Float      // масса = density·r²
+    var minHostDist: Float = 0   // не рождать ближе к хосту
+    var avoidZone = false        // не рождать в поглотителе
 }
 
 /// Какие рычаги и строки HUD включены в туре.
@@ -137,7 +139,7 @@ enum Rounds {
             spawner: SpawnerDef(interval: 3.0, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
-            dust: DustDef(n: 1500, rMin: 1, rMax: 3, density: 15)
+            dust: DustDef(n: 200, rMin: 2, rMax: 4, density: 45, minHostDist: 400, avoidZone: true)   // тяжёлые, редкие, вдали от хоста
         ),
         RoundDef(
             id: "star", win: .star,
