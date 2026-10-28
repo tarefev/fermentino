@@ -123,7 +123,7 @@ enum Rounds {
             winSub: "win.flight",
             narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 50, tangentSpeed: 30, r: 6),   // при вязкости 0.07: в кольцо через ~16 с, ~4 оборота внутри, касание через ~40 с
+            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 70, tangentSpeed: 42, r: 6),   // при вязкости 0.07: в кольцо через ~14 с, ~8 оборотов внутри, касание через ~25 с
             zoneDistance: 1200,
             viscosity: 0.07                 // ниже базовой 0.15: орбиты внутри кольца держатся дольше
         ),
