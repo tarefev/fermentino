@@ -143,8 +143,8 @@ private struct IntroView: View {
             VStack(spacing: 2) {
                 Text("СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ")
                 Text("ЕГО В ПОГЛОТИТЕЛЬ")
-                MoleculeIcon()
-                    .frame(width: 120, height: 100)
+                MoleculeIcon(kind: hud.winKind)
+                    .frame(width: 120, height: 110)
             }
             .font(.system(size: 15, weight: .bold, design: .monospaced))
             .foregroundStyle(hudText)
@@ -162,9 +162,38 @@ private struct IntroView: View {
 }
 
 private struct MoleculeIcon: View {
+    let kind: WinKind
+
     var body: some View {
         Canvas { ctx, size in
-            let px = size.width / 2, py = size.height / 2, R: CGFloat = 32
+            let px = size.width / 2, py = size.height / 2
+            let lineColor = Color(red: 180 / 255, green: 200 / 255, blue: 1).opacity(0.5)
+            if kind == .benzene {
+                // КОЛЬЦО: 6 хабов + 6 наружных кэпов
+                let R: CGFloat = 28
+                let hubs: [CGPoint] = (0..<6).map { k in
+                    let a = -CGFloat.pi / 2 + CGFloat(k) * .pi / 3
+                    return CGPoint(x: px + cos(a) * R, y: py + sin(a) * R)
+                }
+                for k in 0..<6 {
+                    var path = Path()
+                    path.move(to: hubs[k]); path.addLine(to: hubs[(k + 1) % 6])
+                    ctx.stroke(path, with: .color(lineColor), lineWidth: 2)
+                }
+                for k in 0..<6 {
+                    let a = -CGFloat.pi / 2 + CGFloat(k) * .pi / 3
+                    let e = CGPoint(x: px + cos(a) * (R + 15), y: py + sin(a) * (R + 15))
+                    var path = Path()
+                    path.move(to: hubs[k]); path.addLine(to: e)
+                    ctx.stroke(path, with: .color(lineColor), lineWidth: 2)
+                    ctx.fill(Path(ellipseIn: CGRect(x: e.x - 5, y: e.y - 5, width: 10, height: 10)), with: .color(capColor))
+                }
+                for h in hubs {
+                    ctx.fill(Path(ellipseIn: CGRect(x: h.x - 7, y: h.y - 7, width: 14, height: 14)), with: .color(hubColor))
+                }
+                return
+            }
+            let R: CGFloat = 32
             for k in 0..<3 {
                 let ang = -CGFloat.pi / 2 + CGFloat(k) * 2 * .pi / 3
                 let ex = px + cos(ang) * R, ey = py + sin(ang) * R

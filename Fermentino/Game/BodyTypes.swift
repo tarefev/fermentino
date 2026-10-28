@@ -14,9 +14,11 @@ enum BodyType {
 enum BodyFlag {
     static let captured: UInt32 = 1
     static let mine: UInt32 = 4
+    static let molCore: UInt32 = 8
 }
 
 extension Body {
     var isCaptured: Bool { flags & BodyFlag.captured != 0 }
     var isMine: Bool { flags & BodyFlag.mine != 0 }
+    var isMolCore: Bool { flags & BodyFlag.molCore != 0 }
 }

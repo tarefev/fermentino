@@ -2,8 +2,8 @@
 //  Game.swift
 //  Fermentino
 //
-//  Перенос игровой логики веб-прототипа один в один: тела живут в общем буфере GPU,
-//  вся логика раунда (связи, выброс, «свои», нестабильность, победа) — здесь, на CPU.
+//  Перенос игровой логики веб-прототипа (dev-версия) один в один: тела живут в общем буфере
+//  GPU, вся логика раунда (связи, выброс, «свои», нестабильность, победа) — здесь, на CPU.
 //
 
 import Foundation
@@ -11,15 +11,14 @@ import QuartzCore
 import simd
 
 struct CoreInfo {
-    var kind: CoreKind
+    var kind: String              // id элемента: host / trigen / capsor / …
     var main: Bool
     var col: SIMD4<Float>
     var spinPhase: Float
     var slots: [Float]            // углы слотов (рад); валентность = slots.count
+    var kAngle: Float
+    var emblem: String? = nil
     var bonds: [Int: Int] = [:]   // партнёр (индекс ядра) → индекс слота
-    var captured = false
-    var cap: Float = 0            // 0→1 белизна/усадка при поглощении
-    var r0: Float = 0
 
     var valence: Int { slots.count }
 }
@@ -70,6 +69,11 @@ final class Game {
     let hud: HUDModel
     var bodies: UnsafeMutablePointer<Body> { sim.bodies }
 
+    // ---- раунд
+    private(set) var round: RoundDef = Rounds.all[Rounds.ROUND]
+    private var elements: [String: ElementDef] = [:]
+    private var interactIndex: [String: InteractionDef] = [:]
+
     // ---- состояние раунда
     private(set) var count = 0
     private(set) var cores: [CoreInfo] = []
@@ -82,6 +86,7 @@ final class Game {
     var gfxSpin: Float = 0
     private(set) var won = false
     private(set) var winning = false
+    private var winMol: [Int] = []
     private var winBannerT: Float = -1
     private(set) var introT: Float = 0
     private(set) var assembled = false
@@ -146,9 +151,9 @@ final class Game {
         yellowCount = body.count - 1
     }
 
-    func bondParams(_ a: CoreKind, _ b: CoreKind) -> BondParam {
-        let key = a < b ? "\(a.rawValue)-\(b.rawValue)" : "\(b.rawValue)-\(a.rawValue)"
-        return K.BOND_PARAMS[key] ?? K.BOND_DEFAULT
+    /// Параметры связи пары по видам ядер — из индекса взаимодействий раунда.
+    func bondParams(_ a: String, _ b: String) -> InteractionDef {
+        interactIndex[RoundDef.pairKey(a, b)] ?? Rounds.INTERACT_DEFAULT
     }
 
     func nearestFreeSlot(_ c: Int, dir: Float) -> Int {
@@ -182,15 +187,16 @@ final class Game {
         let n = cores.count
         for i in 0..<n {
             for j in (i + 1)..<max(i + 1, n) {
-                if cores[i].captured || cores[j].captured { continue }
+                if bodies[i].isCaptured || bodies[j].isCaptured { continue }
                 let A = bodies[i], B = bodies[j]
                 let ddx = dx(B.pos.x, A.pos.x), ddy = dy(B.pos.y, A.pos.y)
                 let r = hypot(ddx, ddy)
-                let L = (A.r + B.r) * bondParams(cores[i].kind, cores[j].kind).len
+                let bp = bondParams(cores[i].kind, cores[j].kind)
+                let L = (A.r + B.r) * bp.len
                 if cores[i].bonds[j] != nil {
                     let rr: Float = r == 0 ? 1 : r
                     let vn = ((A.vel.x - B.vel.x) * ddx + (A.vel.y - B.vel.y) * ddy) / rr
-                    if r > L * max(K.BOND_BREAK_MULT, 1.15) || abs(vn) > K.BOND_BREAK_VEL {
+                    if r > L * max(bp.breakStretch, 1.15) || abs(vn) > bp.breakVel {
                         cores[i].bonds.removeValue(forKey: j)
                         cores[j].bonds.removeValue(forKey: i)
                     }
@@ -210,8 +216,7 @@ final class Game {
             for j in 0..<mc {
                 let idx = i * mc + j
                 guard i < cores.count, j < cores.count else { sim.bondSlot[idx] = -1; continue }
-                let slot = cores[i].bonds[j]
-                sim.bondSlot[idx] = slot == nil ? -1 : Int32(slot!)
+                if let slot = cores[i].bonds[j] { sim.bondSlot[idx] = Int32(slot) } else { sim.bondSlot[idx] = -1 }
                 let bp = bondParams(cores[i].kind, cores[j].kind)
                 sim.bondK[idx] = bp.k
                 sim.bondLen[idx] = bp.len
@@ -228,57 +233,84 @@ final class Game {
 
     private func rnd(_ a: Float, _ b: Float) -> Float { Float.random(in: a..<b) }
 
-    private func makeCore(_ kind: CoreKind, x: Float, y: Float, main: Bool) -> (Body, CoreInfo) {
-        let t = K.CORE_KINDS[kind]!
+    private func makeCore(_ kind: String, x: Float, y: Float, main: Bool) -> (Body, CoreInfo) {
+        let e = elements[kind]!
         var b = Body()
         b.pos = SIMD2<Float>(x, y)
         b.type = BodyType.core
-        b.r = t.r
-        b.m = t.m
-        let slots = K.VALENCE_ANGLES[kind]!.map { $0 * .pi / 180 }
-        let info = CoreInfo(kind: kind, main: main, col: t.col, spinPhase: rnd(0, .pi * 2), slots: slots)
+        b.r = e.r
+        b.m = e.mass
+        b.kAngle = e.kAngle ?? K.K_ANGLE
+        let info = CoreInfo(kind: kind, main: main, col: e.color, spinPhase: rnd(0, .pi * 2), slots: e.slots,
+                            kAngle: e.kAngle ?? K.K_ANGLE, emblem: e.emblem)
         return (b, info)
     }
 
     func setup() {
+        round = Rounds.all[Rounds.ROUND]
+        elements = round.elements
+        interactIndex = round.interactIndex()
+
         count = 0
         cores = []
         ejectQueue = []
-        won = false; winning = false; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []
+        won = false; winning = false; winMol = []; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []
         hud.showWin = false
+        hud.winKind = round.win
         zone = Zone(x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), r: 130, m: 0)
 
-        var pendingCores: [(Body, CoreInfo)] = []
-        let red = makeCore(.red, x: Game.HALF_W, y: Game.HALF_H, main: true)
-        pendingCores.append(red)
+        var pending: [(Body, CoreInfo)] = []
+        pending.append(makeCore("host", x: Game.HALF_W, y: Game.HALF_H, main: true))
         if K.DEBUG_WIN_TEST {
+            // ТЕСТ ПОГЛОТИТЕЛЯ: хост + готовая молекула текущего раунда подальше от зоны
             let off: Float = 300
             let mx = Game.wrapCoord(zone.x + off, K.WORLD_W), my = zone.y
-            pendingCores[0].0.pos = SIMD2<Float>(Game.wrapCoord(mx + 90, K.WORLD_W), my)
-            var hub = makeCore(.hub, x: mx, y: my, main: false)
-            let capL = (hub.0.r + (K.R_CORE - 1)) * K.BOND_PARAMS["cap-hub"]!.len
-            let hubIndex = 1
-            for k in 0..<3 {
-                let a = hub.1.slots[k]
-                var cap = makeCore(.cap, x: mx + cos(a) * capL, y: my + sin(a) * capL, main: false)
-                cap.0.ang = a + .pi
-                let capIndex = 2 + k
-                hub.1.bonds[capIndex] = k
-                cap.1.bonds[hubIndex] = 0
-                pendingCores.append(cap)
+            let capL = (elements["trigen"]!.r + elements["capsor"]!.r) * bondParams("capsor", "trigen").len
+            if round.win == .benzene {
+                let Rhex = (elements["trigen"]!.r * 2) * bondParams("trigen", "trigen").len
+                pending[0].0.pos = SIMD2<Float>(Game.wrapCoord(mx + Rhex + capL + 60, K.WORLD_W), my)
+                var trig: [Int] = []
+                for k in 0..<6 {
+                    let th = Float(k) * .pi / 3
+                    var t = makeCore("trigen", x: mx + cos(th) * Rhex, y: my + sin(th) * Rhex, main: false)
+                    t.0.ang = th
+                    var c = makeCore("capsor", x: mx + cos(th) * (Rhex + capL), y: my + sin(th) * (Rhex + capL), main: false)
+                    c.0.ang = th + .pi
+                    let ti = pending.count, ci = ti + 1
+                    t.1.bonds[ci] = 0; c.1.bonds[ti] = 0
+                    pending.append(t); pending.append(c)
+                    trig.append(ti)
+                }
+                for k in 0..<6 {
+                    let a = trig[k], b = trig[(k + 1) % 6]
+                    pending[a].1.bonds[b] = 1
+                    pending[b].1.bonds[a] = 2
+                }
+            } else {
+                pending[0].0.pos = SIMD2<Float>(Game.wrapCoord(mx + capL + 40, K.WORLD_W), my)
+                var hub = makeCore("trigen", x: mx, y: my, main: false)
+                let hubIndex = pending.count
+                var caps: [(Body, CoreInfo)] = []
+                for k in 0..<3 {
+                    let a = hub.1.slots[k]
+                    var cap = makeCore("capsor", x: mx + cos(a) * capL, y: my + sin(a) * capL, main: false)
+                    cap.0.ang = a + .pi
+                    hub.1.bonds[hubIndex + 1 + k] = k
+                    cap.1.bonds[hubIndex] = 0
+                    caps.append(cap)
+                }
+                pending.append(hub)
+                pending.append(contentsOf: caps)
             }
-            pendingCores.insert(hub, at: 1)
         } else {
-            for (kind, cnt) in [(CoreKind.hub, 2), (CoreKind.cap, 5)] {
+            for (id, cnt) in round.spawn {
                 for _ in 0..<cnt {
-                    pendingCores.append(makeCore(kind, x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), main: false))
+                    pending.append(makeCore(id, x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), main: false))
                 }
             }
         }
-        for _ in 0..<K.N_YELLOW { pendingCores.append(makeCore(.yellow, x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), main: false)) }
-        for _ in 0..<K.N_NEW { pendingCores.append(makeCore(.new, x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), main: false)) }
 
-        for (b, info) in pendingCores {
+        for (b, info) in pending {
             bodies[count] = b
             cores.append(info)
             count += 1
@@ -295,14 +327,16 @@ final class Game {
             bodies[count] = b; count += 1
         }
 
-        for g in K.ATOM_GROUPS {
+        // Свободные атомы (nitron) — группы из элемента, случайно, низкие скорости
+        let ni = elements["nitron"]!
+        for g in ni.groups {
             for _ in 0..<g.n {
                 guard count < sim.capacity else { break }
                 var b = Body()
                 b.type = BodyType.atom
                 b.pos = SIMD2<Float>(rnd(0, K.WORLD_W), rnd(0, K.WORLD_H))
                 b.vel = SIMD2<Float>(rnd(-K.START_SPEED, K.START_SPEED), rnd(-K.START_SPEED, K.START_SPEED))
-                b.m = K.ATOM_DENSITY * g.r * g.r
+                b.m = ni.density * g.r * g.r
                 b.r = g.r
                 bodies[count] = b; count += 1
             }
@@ -422,17 +456,20 @@ final class Game {
         }
     }
 
+    var explode: ExplodeDef { elements["nitron"]?.explode ?? ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16) }
+
     private func applyInstability(_ dt: Float) {
+        let ex = explode
         var eligible: [Int] = []
-        for o in 0..<count where bodies[o].type == BodyType.atom && Int(bodies[o].nbr) >= K.INSTAB_MAX { eligible.append(o) }
-        if eligible.count < K.INSTAB_BURST { return }
-        var expected = K.INSTAB_RATE * dt * (Float(eligible.count) / K.INSTAB_RATE_REF)
+        for o in 0..<count where bodies[o].type == BodyType.atom && Int(bodies[o].nbr) >= ex.max { eligible.append(o) }
+        if eligible.count < ex.burst { return }
+        var expected = ex.rate * dt * (Float(eligible.count) / ex.rateRef)
         while expected > 0 {
             if expected < 1 && Float.random(in: 0..<1) >= expected { break }
-            for _ in 0..<K.INSTAB_BURST {
+            for _ in 0..<ex.burst {
                 let A = eligible[Int.random(in: 0..<eligible.count)]
                 let ang = Float.random(in: 0..<(.pi * 2))
-                bodies[A].vel += SIMD2<Float>(cos(ang) * K.INSTAB_SPEED, sin(ang) * K.INSTAB_SPEED)
+                bodies[A].vel += SIMD2<Float>(cos(ang) * ex.speed, sin(ang) * ex.speed)
                 bodies[A].heat = 1
             }
             expected -= 1
@@ -449,7 +486,7 @@ final class Game {
         p.G = K.G; p.EPS2 = K.EPS2; p.CUT_START = K.CUT_START; p.CUT_END = K.CUT_END
         p.K_REP = K.K_REP; p.V_STICK = K.V_STICK; p.STICK_MIN = K.STICK_MIN
         p.BOND_DAMP = K.BOND_DAMP; p.K_ANGLE = K.K_ANGLE; p.K_ANGLE_TORQUE = K.K_ANGLE_TORQUE; p.ANG_DAMP = K.ANG_DAMP
-        p.MAX_SPEED = K.MAX_SPEED; p.VISCOSITY = K.VISCOSITY; p.INSTAB_R = K.INSTAB_R
+        p.MAX_SPEED = K.MAX_SPEED; p.VISCOSITY = K.VISCOSITY; p.INSTAB_R = explode.r
         p.bubbleR2 = (K.R_CORE * K.GRAV_OFF_R_MULT) * (K.R_CORE * K.GRAV_OFF_R_MULT)
         p.gravBubbleOn = gravBubbleOn ? 1 : 0
         p.worldSize = SIMD2<Float>(K.WORLD_W, K.WORLD_H)
@@ -460,7 +497,7 @@ final class Game {
 
     private func stepPhysics(_ dt: Float) {
         computeBody()
-        bodies[0].r = max(3, K.R_CORE * bodies[0].m / K.M_CORE)
+        if !bodies[0].isCaptured { bodies[0].r = max(3, K.R_CORE * bodies[0].m / K.M_CORE) }
         if gravMode == -1 {
             pulseTimer += dt
             if pulseTimer >= K.PULSE_PERIOD { pulseTimer -= K.PULSE_PERIOD }
@@ -471,9 +508,6 @@ final class Game {
         if winning {
             zone.bhT += dt
             zone.m = min(K.BH_MAX, K.BH_MAX * zone.bhT / K.BH_RAMP)
-        }
-        for i in 0..<cores.count {
-            if cores[i].captured { bodies[i].flags |= BodyFlag.captured } else { bodies[i].flags &= ~BodyFlag.captured }
         }
         syncBondsToGPU()
         let h = dt * K.TIME_SCALE / Float(K.SUBSTEPS)
@@ -495,70 +529,88 @@ final class Game {
         return ddx * ddx + ddy * ddy <= zone.r * zone.r
     }
 
+    private func partners(_ c: Int, kind: String) -> [Int] {
+        cores[c].bonds.keys.filter { cores[$0].kind == kind }
+    }
+
+    /// Собранная ЧИСТАЯ молекула текущего раунда (без хоста) → индексы её ядер, или nil.
+    private func findMolecule() -> [Int]? {
+        if round.win == .benzene {
+            // «углерод» кольца: trigen, насыщен, ровно 2 trigen-соседа + 1 capsor
+            func isC(_ c: Int?) -> Bool {
+                guard let c else { return false }
+                return cores[c].kind == "trigen" && cores[c].bonds.count == 3
+                    && partners(c, kind: "trigen").count == 2 && partners(c, kind: "capsor").count == 1
+            }
+            for start in 0..<cores.count where isC(start) {
+                var ring = [start]
+                var prev = start
+                var cur: Int? = partners(start, kind: "trigen").first(where: { isC($0) })
+                while let c = cur, isC(c), c != start, ring.count < 6 {
+                    ring.append(c)
+                    let next = partners(c, kind: "trigen").first(where: { $0 != prev && isC($0) })
+                    prev = c; cur = next
+                }
+                if cur == start && ring.count == 6 {
+                    let caps = ring.compactMap { partners($0, kind: "capsor").first }
+                    if caps.count == 6 { return ring + caps }
+                }
+            }
+            return nil
+        }
+        for hub in 0..<cores.count {
+            if cores[hub].kind != "trigen" || cores[hub].bonds.count != cores[hub].valence { continue }
+            let ps = Array(cores[hub].bonds.keys)
+            if ps.allSatisfy({ cores[$0].kind == "capsor" }) { return [hub] + ps }
+        }
+        return nil
+    }
+
     private func checkWin() {
         if won || winning { assembled = false; return }
-        assembled = false
-        for h in 0..<cores.count {
-            let hub = cores[h]
-            if hub.kind != .hub || hub.bonds.count != hub.valence { continue }
-            let partners = Array(hub.bonds.keys)
-            if !partners.allSatisfy({ cores[$0].kind == .cap }) { continue }
-            assembled = true
-            if inZone(h) && partners.allSatisfy({ inZone($0) }) {
-                winning = true
-                zone.bhT = 0
-                for c in [h] + partners {
-                    cores[c].captured = true
-                    cores[c].r0 = bodies[c].r
-                    cores[c].cap = 0
-                    bodies[c].vel = .zero
-                    cores[c].bonds = [:]
-                    cores[c].slots = []
-                    bodies[c].flags |= BodyFlag.captured
-                }
-                return
+        guard let mol = findMolecule() else { assembled = false; return }
+        assembled = true
+        if !mol.allSatisfy({ inZone($0) }) { return }
+        winning = true
+        zone.bhT = 0
+        winMol = mol
+        for c in mol {
+            bodies[c].flags |= BodyFlag.captured | BodyFlag.molCore
+            bodies[c].r0 = bodies[c].r
+            bodies[c].cap = 0
+            bodies[c].vel = .zero
+            cores[c].bonds = [:]
+            cores[c].slots = []
+        }
+    }
+
+    /// ФАЗА 1: молекула и всё, что попало в поглотитель, белеет, усыхает до 10% и тянется к центру.
+    private func advanceCapture(_ dt: Float) {
+        if !winning { return }
+        let DUR: Float = 1.0
+        let zr2 = zone.r * zone.r
+        for o in 0..<count {
+            if bodies[o].isCaptured || bodies[o].type == BodyType.anchor { continue }
+            let ddx = dx(zone.x, bodies[o].pos.x), ddy = dy(zone.y, bodies[o].pos.y)
+            if ddx * ddx + ddy * ddy < zr2 {
+                bodies[o].flags |= BodyFlag.captured
+                bodies[o].r0 = bodies[o].r
+                bodies[o].cap = 0
+                bodies[o].vel = .zero
             }
         }
-    }
-
-    private func advanceCapture(_ dt: Float) {
-        if !winning || won { return }
-        let DUR: Float = 1.0
-        var doneCap = true
-        for c in 0..<cores.count where cores[c].captured {
-            let tox = dx(zone.x, bodies[c].pos.x), toy = dy(zone.y, bodies[c].pos.y)
-            bodies[c].vel += SIMD2<Float>(tox * 4 * dt, toy * 4 * dt)
-            bodies[c].vel *= max(0, 1 - 12 * dt)
-            cores[c].cap = min(1, cores[c].cap + dt / DUR)
-            bodies[c].r = cores[c].r0 * (1 - cores[c].cap)
-            if cores[c].cap < 1 { doneCap = false }
+        for o in 0..<count where bodies[o].isCaptured {
+            let tox = dx(zone.x, bodies[o].pos.x), toy = dy(zone.y, bodies[o].pos.y)
+            bodies[o].vel += SIMD2<Float>(tox * 36 * dt, toy * 36 * dt)
+            bodies[o].vel *= max(0, 1 - 12 * dt)
+            let dur = bodies[o].isMolCore ? DUR : DUR * 1
+            bodies[o].cap = min(1, bodies[o].cap + dt / dur)
+            bodies[o].r = bodies[o].r0 * (1 - 0.9 * bodies[o].cap)
         }
-        if doneCap {
+        if !won && !winMol.isEmpty && winMol.allSatisfy({ bodies[$0].cap >= 1 }) {
             won = true
             winBannerT = 0
-            removeCaptured()
         }
-    }
-
-    /// Убрать поглощённые ядра из мира (ядра идут первыми, остальные тела сдвигаются).
-    private func removeCaptured() {
-        var newCores: [CoreInfo] = []
-        var oldToNew: [Int: Int] = [:]
-        var write = 0
-        for i in 0..<count {
-            let isCapturedCore = i < cores.count && cores[i].captured
-            if isCapturedCore { continue }
-            if i < cores.count { oldToNew[i] = write; newCores.append(cores[i]) }
-            if write != i { bodies[write] = bodies[i] }
-            write += 1
-        }
-        count = write
-        for i in 0..<newCores.count {
-            var remapped: [Int: Int] = [:]
-            for (p, s) in newCores[i].bonds { if let np = oldToNew[p] { remapped[np] = s } }
-            newCores[i].bonds = remapped
-        }
-        cores = newCores
     }
 
     // MARK: - Кадр
@@ -605,12 +657,12 @@ final class Game {
         let host = bodies[0]
         let names: [Int: String] = [-1: "ПУЛЬСАР", 0: "норма", 1: "ВЫКЛ"]
         var goodBonds = 0
-        for c in cores where c.kind == .hub {
-            goodBonds = max(goodBonds, c.bonds.keys.filter { cores[$0].kind == .cap }.count)
+        for c in 0..<cores.count where cores[c].kind == "trigen" {
+            goodBonds = max(goodBonds, partners(c, kind: "capsor").count)
         }
         let inBodySet = Set(body)
-        let hubsInBody = (0..<cores.count).filter { cores[$0].kind == .hub && inBodySet.contains($0) }.count
-        let capsInBody = (0..<cores.count).filter { cores[$0].kind == .cap && inBodySet.contains($0) }.count
+        let hubsInBody = (0..<cores.count).filter { cores[$0].kind == "trigen" && inBodySet.contains($0) }.count
+        let capsInBody = (0..<cores.count).filter { cores[$0].kind == "capsor" && inBodySet.contains($0) }.count
         let haveAll = hubsInBody >= 1 && capsInBody >= K.N_CAP
         let tm = Int(roundT / 60), ts = Int(roundT) % 60
 

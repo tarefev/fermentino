@@ -121,7 +121,7 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                 tq += eA;
                 const float px = -ny, py = nx;
                 const float vtB = (B.vel.x - A.vel.x) * px + (B.vel.y - A.vel.y) * py;
-                const float fB = -p.K_ANGLE * mu * (eA + eB) - p.BOND_DAMP * mu * vtB;
+                const float fB = -mu * (A.kAngle * eA + B.kAngle * eB) - p.BOND_DAMP * mu * vtB;   // per-atom жёсткость угла
                 acc -= float2(px, py) * (fB / A.m);           // реакция на A (поперечная)
             }
         }

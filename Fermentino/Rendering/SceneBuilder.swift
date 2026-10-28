@@ -46,6 +46,16 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
+    private mutating func star(_ x: Float, _ y: Float, _ outer: Float, inner: Float, _ color: SIMD4<Float>) {
+        var s = ShapeInstance()
+        s.center = SIMD2<Float>(x, y)
+        s.radius = outer
+        s.inner = inner / outer      // для звезды: отношение внутреннего радиуса к внешнему
+        s.color = color
+        s.shape = 2
+        scene.shapes.append(s)
+    }
+
     private mutating func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float, _ color: SIMD4<Float>) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x + w / 2, y + h / 2)
@@ -85,16 +95,17 @@ struct SceneBuilder {
         if o.type == BodyType.core {
             let c = game.cores[i]
             var col = c.col
-            if c.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * c.cap; col.w = 1 }
-            let spin = game.gfxSpin * 1.3 + c.spinPhase
-            let orbitR = r * 0.55
+            if o.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * o.cap; col.w = 1 }
+            let spin = game.gfxSpin * 0.8 + c.spinPhase      // 0.8 — скорость вращения электронов
+            let orbitR = r * 0.7                               // 0.7 — радиус орбиты (ближе к краю)
             let n = max(0, c.valence - c.bonds.count)
             let blur: Float = c.main ? 14 : 10
             var glow = col; glow.w = 0.55
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             circle(p.x, p.y, r, col)
+            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a")) }   // герб: золотая звезда
             if n > 0 {
-                let er = max(1.5, r * 0.26)
+                let er = max(1.2, r * 0.21)                   // 0.21 — размер электронов (меньше)
                 for k in 0..<n {
                     let a = spin + Float(k) * (.pi * 2 / Float(n))
                     circle(p.x + cos(a) * orbitR, p.y + sin(a) * orbitR, er, SIMD4<Float>(1, 1, 1, 1))
@@ -102,8 +113,13 @@ struct SceneBuilder {
             }
             return
         }
+        if o.cap > 0 {                                          // растворяется в поглотителе → белеет
+            var col = K.COL_ATOM + (SIMD4<Float>(1, 1, 1, 1) - K.COL_ATOM) * o.cap; col.w = 1
+            circle(p.x, p.y, r, col)
+            return
+        }
         let base = o.isMine ? K.COL_MINE : K.COL_ATOM
-        let t = min(1, Float(o.nbr) / Float(K.INSTAB_MAX))
+        let t = min(1, Float(o.nbr) / Float(game.explode.max))
         circle(p.x, p.y, r, mixCol(base, max(o.heat, t)))
     }
 

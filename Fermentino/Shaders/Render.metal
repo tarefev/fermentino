@@ -25,6 +25,21 @@ struct ShapeOut {
     uint shape;
 };
 
+// SDF пятиконечной звезды (iq): r — внешний радиус, rf — отношение внутреннего к внешнему
+inline float sdStar5(float2 p, float r, float rf)
+{
+    const float2 k1 = float2(0.809016994375, -0.587785252292);
+    const float2 k2 = float2(-k1.x, k1.y);
+    p.x = abs(p.x);
+    p -= 2.0 * max(dot(k1, p), 0.0) * k1;
+    p -= 2.0 * max(dot(k2, p), 0.0) * k2;
+    p.x = abs(p.x);
+    p.y -= r;
+    const float2 ba = rf * float2(-k1.y, k1.x) - float2(0.0, 1.0);
+    const float h = clamp(dot(p, ba) / dot(ba, ba), 0.0, r);
+    return length(p - ba * h) * sign(p.y * ba.x - p.x * ba.y);
+}
+
 inline float4 toNDC(float2 pt, constant FrameUniforms &u)
 {
     float2 ndc = pt / u.viewSize * 2.0 - 1.0;
@@ -58,7 +73,12 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
 fragment float4 shapeFragment(ShapeOut in [[stage_in]])
 {
     float a = 1.0;
-    if (in.shape == 0u) {
+    if (in.shape == 2u) {
+        // звезда остриём вверх (экранный y вниз → переворачиваем)
+        const float d = sdStar5(float2(in.local.x, -in.local.y), in.radius, in.inner);
+        const float edge = max(fwidth(d), 0.5);
+        a = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape == 0u) {
         const float d = length(in.local);
         const float edge = max(fwidth(d), 0.5);
         if (in.soft > 0.0) {

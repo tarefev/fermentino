@@ -21,15 +21,15 @@ typedef struct {
     float m;
     float r;
     unsigned int type;     // 0 core, 1 atom, 2 anchor
-    unsigned int flags;    // 1 captured, 4 mine
+    unsigned int flags;    // 1 captured, 4 mine, 8 molCore
     float ang;             // ориентация ядра (рад)
     float angVel;
     float tq;              // накопленный за подшаг «угловой момент» (сумма ошибок слотов)
     unsigned int nbr;      // соседей в радиусе INSTAB_R (инертоны)
     float heat;            // вспышка выброса/взрыва, 1 → 0
-    float pad0;
-    float pad1;
-    float pad2;
+    float kAngle;          // жёсткость угла этого ядра (per-atom)
+    float cap;             // 0→1 белизна/усадка при поглощении
+    float r0;              // радиус до поглощения
 } Body;
 
 typedef struct {

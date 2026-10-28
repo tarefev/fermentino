@@ -32,6 +32,7 @@ xcodebuild -downloadComponent MetalToolchain
 ## Структура
 
 - `Fermentino/Game/GameConstants.swift` — константы K прототипа
+- `Fermentino/Game/Rounds.swift` — раунды (элементы, связи, спавн, условие победы), выбор `Rounds.ROUND`
 - `Fermentino/Game/Game.swift` — логика раунда (порт функций прототипа)
 - `Fermentino/Shaders/ShaderTypes.h` — структуры, общие для Swift и Metal
 - `Fermentino/Shaders/Simulation.metal` — computeForces / integrate

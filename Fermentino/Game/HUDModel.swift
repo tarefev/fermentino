@@ -34,4 +34,5 @@ final class HUDModel {
     var zoneLabel: CGPoint? = nil
     var ejectModeName = "opposite"
     var showBonds = true
+    var winKind: WinKind = .star
 }
