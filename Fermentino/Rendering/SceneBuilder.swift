@@ -224,12 +224,15 @@ struct SceneBuilder {
             let mmX = w - mmS - 12, mmY = h - mmS - 34
             if tip.x > mmX - 18 && tip.y > mmY - 18 { tip.y = mmY - 18 }
         }
-        let pulse = 0.5 + 0.5 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))
+        let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
         let size: Float = 11
         let center = tip - dir * (size * 0.3)
-        circle(center.x, center.y, size * 2.2, rgba(175, 115, 255, 0.22 * pulse), soft: 1)   // свечение
-        arrow(center.x, center.y, size, angle: ang, rgba(205, 170, 255, 0.85 * pulse))
+        var ship = rgb("#cc1414")                                           // цвет корабля
+        ship.w = 0.25 * pulse
+        circle(center.x, center.y, size * 2.2, ship, soft: 1)              // свечение
+        ship.w = 0.95 * pulse
+        arrow(center.x, center.y, size, angle: ang, ship)
     }
 
     private mutating func buildMinimap(cam: SIMD2<Float>) {

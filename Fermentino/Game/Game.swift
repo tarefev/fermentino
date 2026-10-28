@@ -563,7 +563,7 @@ final class Game {
         p.G = K.G; p.EPS2 = K.EPS2; p.CUT_START = K.CUT_START; p.CUT_END = K.CUT_END
         p.K_REP = K.K_REP; p.V_STICK = K.V_STICK; p.STICK_MIN = K.STICK_MIN
         p.BOND_DAMP = K.BOND_DAMP; p.K_ANGLE = K.K_ANGLE; p.K_ANGLE_TORQUE = K.K_ANGLE_TORQUE; p.ANG_DAMP = K.ANG_DAMP
-        p.MAX_SPEED = K.MAX_SPEED; p.VISCOSITY = K.VISCOSITY; p.INSTAB_R = explode.r
+        p.MAX_SPEED = K.MAX_SPEED; p.VISCOSITY = round.viscosity ?? K.VISCOSITY; p.INSTAB_R = explode.r
         p.bubbleR2 = (K.R_CORE * K.GRAV_OFF_R_MULT) * (K.R_CORE * K.GRAV_OFF_R_MULT)
         p.gravBubbleOn = gravBubbleOn ? 1 : 0
         p.worldSize = SIMD2<Float>(K.WORLD_W, K.WORLD_H)

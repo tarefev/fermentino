@@ -87,6 +87,7 @@ struct RoundDef {
     var controls = RoundControls()
     var spawner: SpawnerDef? = nil  // приток инертонов вместо разбросанных по карте
     var zoneDistance: Float? = nil  // поглотитель на этом расстоянии от старта (nil = случайно по карте)
+    var viscosity: Float? = nil     // вязкость среды в туре (nil = K.VISCOSITY)
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -122,8 +123,9 @@ enum Rounds {
             winSub: "win.flight",
             narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 100, tangentSpeed: 45, r: 6),   // ~5 оборотов по спирали до касания
-            zoneDistance: 1200
+            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 50, tangentSpeed: 30, r: 6),   // при вязкости 0.07: в кольцо через ~16 с, ~4 оборота внутри, касание через ~40 с
+            zoneDistance: 1200,
+            viscosity: 0.07                 // ниже базовой 0.15: орбиты внутри кольца держатся дольше
         ),
         RoundDef(
             id: "star", win: .star,
