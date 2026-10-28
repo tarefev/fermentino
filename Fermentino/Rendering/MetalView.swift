@@ -36,6 +36,9 @@ struct MetalView: UIViewRepresentable {
             guard let r = session.renderer else { return }
             r.game.tap(at: point, viewSize: size, scale: r.scale)
         }
+        view.onLongPress = { [session] in
+            session.press(.restart)      // тест: долгое нажатие 2 с = рестарт текущего тура
+        }
         return view
     }
 
@@ -44,9 +47,25 @@ struct MetalView: UIViewRepresentable {
 
 final class TouchMTKView: MTKView {
     var onTap: ((CGPoint, CGSize) -> Void)?
+    var onLongPress: (() -> Void)?
+    private var longPressTimer: Timer?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
         onTap?(t.location(in: self), bounds.size)
+        longPressTimer?.invalidate()
+        longPressTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.onLongPress?()
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
     }
 }
