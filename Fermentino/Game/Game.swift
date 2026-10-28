@@ -402,7 +402,11 @@ final class Game {
     }
 
     private func advanceNarration() {
-        let minShow: Float = 2.5, maxShow: Float = 6.0, fade: Float = 1.0
+        // время показа по длине текста: ~14 знаков в секунду, не меньше 3 с; следующая реплика
+        // не вытесняет текущую, пока та не дочитана
+        let fade: Float = 1.0
+        let minShow = max(3.0, Float(hud.narration.count) / 14.0)
+        let maxShow = minShow + 2.5
         let shown = introT - narrationShownAt
         let hasCurrent = narrationShownAt >= 0 && shown < maxShow
         if !narrationQueue.isEmpty && (!hasCurrent || shown >= minShow) {
