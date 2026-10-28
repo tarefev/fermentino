@@ -62,6 +62,7 @@ struct SpawnerDef {
     var radialSpeed: Float  // скорость к хосту, ед/с
     var tangentSpeed: Float // боковая скорость, ед/с → выход на спираль вокруг хоста (знак случайный)
     var r: Float            // радиус инертона
+    var startOnBoard = 0    // сколько инертонов уже на борту в начале тура
 }
 
 /// Какие рычаги и строки HUD включены в туре.
@@ -123,9 +124,9 @@ enum Rounds {
             winSub: "win.flight",
             narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 2.5, distance: 500, radialSpeed: 70, tangentSpeed: 42, r: 6),   // при вязкости 0.07: в кольцо через ~14 с, ~8 оборотов внутри, касание через ~25 с
+            spawner: SpawnerDef(interval: 1.5, distance: 450, radialSpeed: 120, tangentSpeed: 40, r: 6, startOnBoard: 4),   // при вязкости 0.15: в кольцо через ~9 с, ~2 оборота, касание через ~20 с
             zoneDistance: 1200,
-            viscosity: 0.07                 // ниже базовой 0.15: орбиты внутри кольца держатся дольше
+            viscosity: 0.15                 // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
         ),
         RoundDef(
             id: "star", win: .star,

@@ -365,6 +365,26 @@ final class Game {
             }
         }
 
+        // стартовый запас инертонов на борту (обучающие туры): кольцом вокруг хоста, с круговой скоростью
+        if let sp = round.spawner, sp.startOnBoard > 0, let ni = elements["nitron"] {
+            let host = bodies[0]
+            let orbitR = host.r + sp.r + 10
+            let vOrbit = sqrt(K.G * host.m / orbitR)
+            for k in 0..<sp.startOnBoard {
+                guard count < sim.capacity else { break }
+                let a = Float(k) * 2 * .pi / Float(sp.startOnBoard)
+                let dir = SIMD2<Float>(cos(a), sin(a))
+                var b = Body()
+                b.type = BodyType.atom
+                b.pos = SIMD2<Float>(Game.wrapCoord(host.pos.x + dir.x * orbitR, K.WORLD_W),
+                                     Game.wrapCoord(host.pos.y + dir.y * orbitR, K.WORLD_H))
+                b.vel = SIMD2<Float>(-dir.y, dir.x) * vOrbit
+                b.m = ni.density * sp.r * sp.r
+                b.r = sp.r
+                bodies[count] = b; count += 1
+            }
+        }
+
         stars = (0..<K.N_STARS).map { _ in Star(x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), big: Float.random(in: 0..<1) < 0.18) }
 
         computeBody()
