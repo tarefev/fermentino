@@ -365,6 +365,20 @@ final class Game {
             }
         }
 
+        // пыль: мелкие тела случайного размера по всему миру, те же законы, но не инертоны
+        if let d = round.dust {
+            for _ in 0..<d.n {
+                guard count < sim.capacity else { break }
+                var b = Body()
+                b.type = BodyType.dust
+                b.pos = SIMD2<Float>(rnd(0, K.WORLD_W), rnd(0, K.WORLD_H))
+                b.vel = SIMD2<Float>(rnd(-K.START_SPEED, K.START_SPEED), rnd(-K.START_SPEED, K.START_SPEED))
+                b.r = rnd(d.rMin, d.rMax)
+                b.m = d.density * b.r * b.r
+                bodies[count] = b; count += 1
+            }
+        }
+
         // стартовый запас инертонов на борту (обучающие туры): кольцом вокруг хоста, с круговой скоростью
         if let sp = round.spawner, sp.startOnBoard > 0, let ni = elements["nitron"] {
             let host = bodies[0]

@@ -9,6 +9,7 @@ enum BodyType {
     static let core: UInt32 = 0
     static let atom: UInt32 = 1
     static let anchor: UInt32 = 2
+    static let dust: UInt32 = 3     // пыль: гравитация и контакт как у всех, но не инертон
 }
 
 enum BodyFlag {

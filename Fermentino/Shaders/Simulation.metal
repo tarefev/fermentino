@@ -13,6 +13,7 @@ using namespace metal;
 #define BODY_CORE   0u
 #define BODY_ATOM   1u
 #define BODY_ANCHOR 2u
+#define BODY_DUST   3u   // физика как у инертона, в логике не участвует
 #define FLAG_CAPTURED 1u
 
 inline float wrapDelta(float d, float halfSize, float full)

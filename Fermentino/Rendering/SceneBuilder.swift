@@ -96,6 +96,10 @@ struct SceneBuilder {
         if p.x < cx - marginX || p.x > cx + marginX || p.y < cy - marginY || p.y > cy + marginY { return }
         let r = o.r * scale
 
+        if o.type == BodyType.dust {
+            circle(p.x, p.y, r, rgba(138, 160, 189, 0.55))
+            return
+        }
         if o.type == BodyType.anchor {
             circle(p.x, p.y, r, K.COL_ANCHOR)
             circle(p.x - r * 0.3, p.y - r * 0.3, r * 0.6, K.COL_ANCHOR_EDGE, soft: 1)
@@ -174,6 +178,7 @@ struct SceneBuilder {
         // порядок: якоря → свободные → свои → связи → ядра
         let n = game.count
         for i in 0..<n where bodies[i].type == BodyType.anchor { drawBody(i, cam: cam) }
+        for i in 0..<n where bodies[i].type == BodyType.dust { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.atom && !bodies[i].isMine { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.atom && bodies[i].isMine { drawBody(i, cam: cam) }
 

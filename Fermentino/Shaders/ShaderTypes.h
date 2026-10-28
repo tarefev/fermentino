@@ -20,7 +20,7 @@ typedef struct {
     simd_float2 vel;
     float m;
     float r;
-    unsigned int type;     // 0 core, 1 atom, 2 anchor
+    unsigned int type;     // 0 core, 1 atom, 2 anchor, 3 dust
     unsigned int flags;    // 1 captured, 4 mine, 8 molCore
     float ang;             // ориентация ядра (рад)
     float angVel;

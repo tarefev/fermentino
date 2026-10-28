@@ -66,6 +66,14 @@ struct SpawnerDef {
     var firstDelay: Float = 0  // с до первого прилёта (дать прочитать стартовую реплику)
 }
 
+/// Пыль: много мелких тел случайного размера, живут по тем же законам, но не инертоны.
+struct DustDef {
+    var n: Int
+    var rMin: Float
+    var rMax: Float
+    var density: Float      // масса = density·r²
+}
+
 /// Какие рычаги и строки HUD включены в туре.
 struct RoundControls {
     var hud = true          // служебные тексты вообще (HUD сверху, подсказка снизу)
@@ -90,6 +98,7 @@ struct RoundDef {
     var spawner: SpawnerDef? = nil  // приток инертонов вместо разбросанных по карте
     var zoneDistance: Float? = nil  // поглотитель на этом расстоянии от старта (nil = случайно по карте)
     var viscosity: Float? = nil     // вязкость среды в туре (nil = K.VISCOSITY)
+    var dust: DustDef? = nil        // пыль по миру
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -127,7 +136,8 @@ enum Rounds {
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
             spawner: SpawnerDef(interval: 3.0, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
             zoneDistance: 1200,
-            viscosity: 0.15                 // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
+            viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
+            dust: DustDef(n: 1500, rMin: 1, rMax: 3, density: 15)
         ),
         RoundDef(
             id: "star", win: .star,
