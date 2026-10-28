@@ -40,4 +40,6 @@ final class HUDModel {
     var winSub = ""
     var hasNext = false
     var controls = RoundControls()
+    var narration = ""
+    var narrationOpacity: Double = 0
 }

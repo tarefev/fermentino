@@ -36,6 +36,7 @@ struct ContentView: View {
                 .padding(.vertical, 6)
             }
             IntroView(hud: session.hud)
+            NarrationView(hud: session.hud)
             WinView(hud: session.hud, session: session)
         }
         .statusBarHidden(true)
@@ -231,6 +232,27 @@ private struct MoleculeIcon: View {
     }
 }
 
+// MARK: - Реплики диспетчерской
+
+private struct NarrationView: View {
+    let hud: HUDModel
+
+    var body: some View {
+        if hud.narrationOpacity > 0 {
+            Text(hud.narration)
+                .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(hudText)
+                .shadow(color: .black, radius: 6, y: 2)
+                .padding(.horizontal, 28)
+                .opacity(hud.narrationOpacity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .offset(y: -150)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - Победа
 
 private struct WinView: View {
@@ -240,7 +262,7 @@ private struct WinView: View {
     var body: some View {
         if hud.showWin {
             VStack(spacing: 16) {
-                Text("ВЫ ПОБЕДИЛИ")
+                Text(Strings.t("win.title"))
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                     .foregroundStyle(winTitle)
                     .shadow(color: Color(red: 0xa0 / 255, green: 0x6b / 255, blue: 1), radius: 11, y: 2)
@@ -253,7 +275,7 @@ private struct WinView: View {
                 Button {
                     if hud.hasNext { session.press(.nextRound) } else { session.press(.restart) }
                 } label: {
-                    Text(hud.hasNext ? "Дальше →" : "Рестарт ⟳")
+                    Text(hud.hasNext ? Strings.t("win.next") : Strings.t("win.restart"))
                         .font(.system(size: 16, design: .monospaced))
                         .foregroundStyle(Color(red: 0x0a / 255, green: 0x07 / 255, blue: 0x10 / 255))
                         .padding(.horizontal, 30)

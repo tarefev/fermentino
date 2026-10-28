@@ -207,7 +207,13 @@ struct SceneBuilder {
         var t = Float.infinity
         if abs(dir.x) > 1e-4 { t = min(t, halfW / abs(dir.x)) }
         if abs(dir.y) > 1e-4 { t = min(t, halfH / abs(dir.y)) }
-        let tip = SIMD2<Float>(cx, cy) + dir * t
+        var tip = SIMD2<Float>(cx, cy) + dir * t
+        // не залезать на миникарту (правый нижний угол на телефоне)
+        if w < 500 {
+            let mmS: Float = 120
+            let mmX = w - mmS - 12, mmY = h - mmS - 34
+            if tip.x > mmX - 18 && tip.y > mmY - 18 { tip.y = mmY - 18 }
+        }
         let pulse = 0.6 + 0.4 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))
         let col = rgba(190, 140, 255, 0.9 * pulse)
         let size: Float = 14
@@ -230,7 +236,12 @@ struct SceneBuilder {
         let mmY: Float = phone ? h - mmS - 34 : 12
         let mmc = mmX + mmS / 2, mmm = mmY + mmS / 2
         let sc = mmS / K.WORLD_W
-        rect(mmX, mmY, mmS, mmS, rgba(5, 8, 14, 0.45))   // без обрамления: только лёгкое затемнение
+        rect(mmX, mmY, mmS, mmS, rgba(5, 8, 14, 0.45))
+        let border = rgba(120, 150, 200, 0.16)           // тонкая неяркая обводка
+        line(mmX, mmY, mmX + mmS, mmY, border)
+        line(mmX + mmS, mmY, mmX + mmS, mmY + mmS, border)
+        line(mmX + mmS, mmY + mmS, mmX, mmY + mmS, border)
+        line(mmX, mmY + mmS, mmX, mmY, border)
 
         let zone = game.zone
         let zr = max(3, zone.r * sc)

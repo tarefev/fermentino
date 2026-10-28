@@ -80,9 +80,10 @@ struct RoundDef {
     var spawn: [(id: String, n: Int)]
     var elements: [String: ElementDef]
     var interactions: [InteractionDef]
-    var intro: [String] = ["СОБЕРИ ЭТОТ ФЕРМЕНТ И ОТНЕСИ", "ЕГО В ПОГЛОТИТЕЛЬ"]
+    var intro: [String] = ["intro.molecule.1", "intro.molecule.2"]   // ключи Strings
     var introIcon = true            // рисовать целевую молекулу в интро
-    var winSub = "фермент собран и поглощён"
+    var winSub = "win.molecule"     // ключ Strings
+    var narration = false           // реплики диспетчерской по событиям (обучение)
     var controls = RoundControls()
     var spawner: SpawnerDef? = nil  // приток инертонов вместо разбросанных по карте
     var zoneDistance: Float? = nil  // поглотитель на этом расстоянии от старта (nil = случайно по карте)
@@ -116,11 +117,12 @@ enum Rounds {
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
             ],
             interactions: [],
-            intro: ["Чёрт тебя дери, доплыви до поглотителя.", "Это была случайность."],
+            intro: [],
             introIcon: false,
-            winSub: "ты долетел",
+            winSub: "win.flight",
+            narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 2.5, speed: 300, distance: 620, spread: 0.25, r: 6),
+            spawner: SpawnerDef(interval: 2.5, speed: 300, distance: 620, spread: 0, r: 6),   // точно в корабль, с упреждением
             zoneDistance: 1200
         ),
         RoundDef(

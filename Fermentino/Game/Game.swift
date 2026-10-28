@@ -72,6 +72,11 @@ final class Game {
     // ---- раунд
     private(set) var round: RoundDef = Rounds.all[Progress.roundIndex]
     private var spawnTimer: Float = 0
+
+    // ---- реплики диспетчерской (обучение)
+    private var narrationQueue: [String] = []
+    private var narrationShownAt: Float = -1
+    private var said: Set<String> = []
     private var elements: [String: ElementDef] = [:]
     private var interactIndex: [String: InteractionDef] = [:]
 
@@ -232,7 +237,10 @@ final class Game {
 
     // MARK: - Старт
 
-    private func rnd(_ a: Float, _ b: Float) -> Float { Float.random(in: a..<b) }
+    private func rnd(_ a: Float, _ b: Float) -> Float {
+        if b <= a { return a }          // пустой диапазон (например, разброс 0) → без случайности
+        return Float.random(in: a..<b)
+    }
 
     private func makeCore(_ kind: String, x: Float, y: Float, main: Bool) -> (Body, CoreInfo) {
         let e = elements[kind]!
@@ -259,9 +267,11 @@ final class Game {
         won = false; winning = false; winMol = []; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []
         hud.showWin = false
         hud.winKind = round.win
-        hud.introLines = round.intro
+        hud.introLines = round.intro.map { Strings.t($0) }
         hud.introIcon = round.introIcon
-        hud.winSub = round.winSub
+        hud.winSub = Strings.t(round.winSub)
+        narrationQueue = []; narrationShownAt = -1; said = []
+        hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
         zone = Zone(x: rnd(0, K.WORLD_W), y: rnd(0, K.WORLD_H), r: 130, m: 0)
@@ -359,12 +369,39 @@ final class Game {
 
         computeBody()
         updateMine()
+        say("flight.start")
+    }
+
+    // MARK: - Реплики по событиям
+
+    /// Сказать реплику один раз за раунд (только в турах с нарративом).
+    private func say(_ key: String) {
+        guard round.narration, !said.contains(key) else { return }
+        said.insert(key)
+        narrationQueue.append(Strings.t(key))
+    }
+
+    private func advanceNarration() {
+        let minShow: Float = 2.5, maxShow: Float = 6.0, fade: Float = 1.0
+        let shown = introT - narrationShownAt
+        let hasCurrent = narrationShownAt >= 0 && shown < maxShow
+        if !narrationQueue.isEmpty && (!hasCurrent || shown >= minShow) {
+            hud.narration = narrationQueue.removeFirst()
+            narrationShownAt = introT
+            hud.narrationOpacity = 1
+            return
+        }
+        if !hasCurrent { if hud.narrationOpacity != 0 { hud.narrationOpacity = 0 }; return }
+        var op: Double = 1
+        if shown > maxShow - fade { op = Double((maxShow - shown) / fade) }
+        if hud.narrationOpacity != op { hud.narrationOpacity = max(0, op) }
     }
 
     // MARK: - Выброс (§4)
 
     private func doEject(_ best: Int, _ dxn: Float, _ dyn: Float) {
         bodies[best].heat = 1
+        say("flight.moving")
         let es = K.EJECT_SPEED * sqrt(1 + Float(yellowCount) * K.ENERGY_PER_YELLOW) * (K.EJECT_REF_MASS / bodies[best].m)
         if ejectMode == .intoCore {
             let ctr = mainCore
@@ -458,16 +495,22 @@ final class Game {
         let host = bodies[0]
         let a = rnd(0, .pi * 2)
         let dir = SIMD2<Float>(cos(a), sin(a))
-        let va = a + .pi + rnd(-sp.spread, sp.spread)        // к хосту с разбросом
+        let start = host.pos + dir * sp.distance
+        // упреждение: целимся туда, где хост будет к моменту прилёта
+        let flight = sp.distance / sp.speed
+        let target = host.pos + host.vel * flight
+        var aim = target - start
+        let aimLen = simd_length(aim); if aimLen < 1 { aim = -dir } else { aim /= aimLen }
+        let va = atan2(aim.y, aim.x) + rnd(-sp.spread, sp.spread)
         var b = Body()
         b.type = BodyType.atom
-        b.pos = SIMD2<Float>(Game.wrapCoord(host.pos.x + dir.x * sp.distance, K.WORLD_W),
-                             Game.wrapCoord(host.pos.y + dir.y * sp.distance, K.WORLD_H))
+        b.pos = SIMD2<Float>(Game.wrapCoord(start.x, K.WORLD_W), Game.wrapCoord(start.y, K.WORLD_H))
         b.vel = SIMD2<Float>(cos(va), sin(va)) * sp.speed
         b.m = ni.density * sp.r * sp.r
         b.r = sp.r
         bodies[count] = b
         count += 1
+        say("flight.incoming")
     }
 
     // MARK: - «Свои» (§5/§7) и нестабильность
@@ -555,6 +598,9 @@ final class Game {
             if bodies[o].heat > 0 { bodies[o].heat -= dt / K.EJECT_FADE }
         }
         updateMine()
+        if round.narration {
+            for o in 0..<count where bodies[o].type == BodyType.atom && bodies[o].isMine { say("flight.caught"); break }
+        }
         applyInstability(dt)
         runSpawner(dt)
     }
@@ -612,6 +658,7 @@ final class Game {
             winning = true
             zone.bhT = 0
             winMol = [0]
+            say("flight.done")
             bodies[0].flags |= BodyFlag.captured | BodyFlag.molCore
             bodies[0].r0 = bodies[0].r
             bodies[0].cap = 0
@@ -692,6 +739,7 @@ final class Game {
             if winBannerT >= 3 { winBannerT = -1; hud.showWin = true }
         }
         gfxSpin += 0.05
+        advanceNarration()
 
         fpsAcc += rawElapsed; fpsFrames += 1
         if fpsAcc >= 0.5 { fps = Float(fpsFrames) / fpsAcc; fpsAcc = 0; fpsFrames = 0 }
