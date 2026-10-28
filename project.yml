@@ -1,0 +1,41 @@
+name: Fermentino
+options:
+  bundleIdPrefix: com.tarefev
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
+    MTL_FAST_MATH: "YES"
+targets:
+  Fermentino:
+    type: application
+    platform: iOS
+    sources:
+      - path: Fermentino
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tarefev.fermentino
+        SWIFT_OBJC_BRIDGING_HEADER: Fermentino/Shaders/ShaderTypes.h
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIStatusBarHidden: "YES"
+        INFOPLIST_KEY_UIRequiresFullScreen: "YES"
+        INFOPLIST_KEY_CFBundleDisplayName: Fermentino
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+schemes:
+  Fermentino:
+    build:
+      targets:
+        Fermentino: all
+    run:
+      config: Debug
