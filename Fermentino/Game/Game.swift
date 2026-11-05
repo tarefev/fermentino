@@ -227,6 +227,15 @@ final class Game {
     /// Матрицы связей и слотов → буферы GPU.
     private func syncBondsToGPU() {
         let mc = Int(FERM_MAX_CORES), ms = Int(FERM_MAX_SLOTS)
+        // притяжение концов щупов: тянет только свободный и включённый щуп
+        for s in 0..<ms {
+            var pm: Float = 0
+            if let pr = round.probes, s < held.count, !probeOff[s] {
+                if held[s].isEmpty { pm = pr.probeMass }
+                else if held[s].count < pr.maxClump { pm = pr.probeMass * pr.fillingGravity }
+            }
+            sim.probeMass[s] = pm
+        }
         // флаг «на щупе» для ядра сил (место покоя тело хранит само: ang и angVel)
         if probesOn {
             for o in 0..<count { bodies[o].flags &= ~BodyFlag.held }
@@ -653,6 +662,31 @@ final class Game {
             held[s] = grains
             holdOrder.append(s)
         }
+        // рост: комок на щупе берёт зёрна, пока их меньше maxClump — те, что у конца щупа или касаются комка
+        for s in 0..<held.count where !held[s].isEmpty && held[s].count < pr.maxClump && !probeOff[s] {
+            let a = host.ang + cores[0].slots[s]
+            let tipX = host.pos.x + cos(a) * pr.length, tipY = host.pos.y + sin(a) * pr.length
+            for o in cores.count..<count where bodies[o].type == BodyType.dust {
+                if held[s].count >= pr.maxClump { break }
+                if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) || onHull(o) { continue }
+                let tdx = dx(bodies[o].pos.x, tipX), tdy = dy(bodies[o].pos.y, tipY)
+                var joins = tdx * tdx + tdy * tdy <= pr.captureR * pr.captureR
+                if !joins {
+                    for j in held[s] {
+                        let ddx = dx(bodies[o].pos.x, bodies[j].pos.x), ddy = dy(bodies[o].pos.y, bodies[j].pos.y)
+                        let reach = (bodies[o].r + bodies[j].r) * pr.linkGap
+                        if ddx * ddx + ddy * ddy <= reach * reach { joins = true; break }
+                    }
+                }
+                if !joins { continue }
+                let rx = dx(bodies[o].pos.x, host.pos.x), ry = dy(bodies[o].pos.y, host.pos.y)
+                bodies[o].angVel = max(1, hypot(rx, ry))
+                bodies[o].ang = atan2(ry, rx) - host.ang
+                bodies[o].flags |= BodyFlag.held
+                taken.insert(o)
+                held[s].append(o)
+            }
+        }
     }
 
     /// Долгое нажатие на кнопку щупа: выключить / включить. Выключенный щуп ничего не ловит;
@@ -860,6 +894,7 @@ final class Game {
             p.hostSpin = pr.spin
             p.holdDamp = pr.damp
             p.heldGravity = pr.heldGravity
+            p.hostGravity = pr.hostGravity
         }
         return p
     }

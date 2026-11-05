@@ -25,12 +25,14 @@ final class GPUSimulation {
     private let bondKBuffer: MTLBuffer
     private let bondLenBuffer: MTLBuffer
     private let slotsBuffer: MTLBuffer
+    private let probeMassBuffer: MTLBuffer
 
     let bodies: UnsafeMutablePointer<Body>
     let bondSlot: UnsafeMutablePointer<Int32>
     let bondK: UnsafeMutablePointer<Float>
     let bondLen: UnsafeMutablePointer<Float>
     let slots: UnsafeMutablePointer<Float>
+    let probeMass: UnsafeMutablePointer<Float>   // гравитационная масса конца каждого щупа хоста (0 = не притягивает)
 
     init(device: MTLDevice, library: MTLLibrary, capacity: Int) throws {
         self.device = device
@@ -60,12 +62,15 @@ final class GPUSimulation {
         bondKBuffer = shared(MemoryLayout<Float>.stride * maxCores * maxCores, "bondK")
         bondLenBuffer = shared(MemoryLayout<Float>.stride * maxCores * maxCores, "bondLen")
         slotsBuffer = shared(MemoryLayout<Float>.stride * maxCores * maxSlots, "slots")
+        probeMassBuffer = shared(MemoryLayout<Float>.stride * maxSlots, "probeMass")
 
         bodies = bodyBuffer.contents().bindMemory(to: Body.self, capacity: capacity)
         bondSlot = bondSlotBuffer.contents().bindMemory(to: Int32.self, capacity: maxCores * maxCores)
         bondK = bondKBuffer.contents().bindMemory(to: Float.self, capacity: maxCores * maxCores)
         bondLen = bondLenBuffer.contents().bindMemory(to: Float.self, capacity: maxCores * maxCores)
         slots = slotsBuffer.contents().bindMemory(to: Float.self, capacity: maxCores * maxSlots)
+        probeMass = probeMassBuffer.contents().bindMemory(to: Float.self, capacity: maxSlots)
+        probeMass.initialize(repeating: 0, count: maxSlots)
         bodies.initialize(repeating: Body(), count: capacity)
     }
 
@@ -91,6 +96,7 @@ final class GPUSimulation {
             encoder.setBuffer(bondLenBuffer, offset: 0, index: 6)
             encoder.setBuffer(slotsBuffer, offset: 0, index: 7)
             encoder.setBytes(&p, length: MemoryLayout<SimParams>.stride, index: 8)
+            encoder.setBuffer(probeMassBuffer, offset: 0, index: 9)
             encoder.dispatchThreadgroups(groups, threadsPerThreadgroup: perGroup)
 
             encoder.setComputePipelineState(integrateState)

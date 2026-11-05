@@ -44,6 +44,7 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                           device const float *bondLen   [[buffer(6)]],
                           device const float *slots     [[buffer(7)]],
                           constant SimParams &p         [[buffer(8)]],
+                          device const float *probeMass [[buffer(9)]],
                           uint i [[thread_position_in_grid]])
 {
     if (i >= p.bodyCount) return;
@@ -101,6 +102,8 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         // тело на щупе притягивает слабее: его гравитационная масса умножена на heldGravity (инерция прежняя)
         float gA = A.m, gB = B.m;
         if (p.holdOn != 0u) {
+            if (i == 0u) gA *= p.hostGravity;      // корабль притягивает слабее: тянут концы свободных щупов
+            if (j == 0u) gB *= p.hostGravity;
             if ((A.flags & FLAG_HELD) != 0u) gA *= p.heldGravity;
             if ((B.flags & FLAG_HELD) != 0u) gB *= p.heldGravity;
         }
@@ -172,6 +175,44 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         }
 
         if (!aAnchor) acc += float2(nx, ny) * (fnet / A.m);
+
+        // концы свободных щупов притягивают тело B; хост получает равную противоположную силу
+        if (i == 0u && p.holdOn != 0u && B.type != BODY_ANCHOR
+            && (B.flags & (FLAG_CAPTURED | FLAG_HELD)) == 0u) {
+            for (uint s = 0; s < FERM_MAX_SLOTS; ++s) {
+                const float pm = probeMass[s];
+                if (pm <= 0.0) continue;
+                const float ta = A.ang + slots[s];
+                const float2 tip = A.pos + float2(cos(ta), sin(ta)) * p.holdLen;
+                const float tx = wrapDelta(tip.x - B.pos.x, hw.x, p.worldSize.x);
+                const float ty = wrapDelta(tip.y - B.pos.y, hw.y, p.worldSize.y);
+                float tr2 = tx * tx + ty * ty;
+                if (tr2 > cutEnd2) continue;
+                if (tr2 < 1e-6) tr2 = 1e-6;
+                const float tr = sqrt(tr2);
+                const float ta2 = p.G * pm / (tr2 + p.EPS2) * gravTaper(tr, p);   // ускорение B к концу щупа
+                acc -= float2(tx, ty) * (ta2 / tr) * (B.m / A.m);                  // реакция на корабль
+            }
+        }
+    }
+
+    // конец свободного щупа притягивает это тело
+    if (i != 0u && p.holdOn != 0u && !aAnchor && (A.flags & (FLAG_CAPTURED | FLAG_HELD)) == 0u) {
+        const Body H = bodies[0];
+        for (uint s = 0; s < FERM_MAX_SLOTS; ++s) {
+            const float pm = probeMass[s];
+            if (pm <= 0.0) continue;
+            const float ta = H.ang + slots[s];
+            const float2 tip = H.pos + float2(cos(ta), sin(ta)) * p.holdLen;
+            const float tx = wrapDelta(tip.x - A.pos.x, hw.x, p.worldSize.x);
+            const float ty = wrapDelta(tip.y - A.pos.y, hw.y, p.worldSize.y);
+            float tr2 = tx * tx + ty * ty;
+            if (tr2 > cutEnd2) continue;
+            if (tr2 < 1e-6) tr2 = 1e-6;
+            const float tr = sqrt(tr2);
+            const float ta2 = p.G * pm / (tr2 + p.EPS2) * gravTaper(tr, p);
+            acc += float2(tx, ty) * (ta2 / tr);
+        }
     }
 
     // чёрная дыра в центре поглотителя (после победы)
