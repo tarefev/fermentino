@@ -258,7 +258,7 @@ struct SceneBuilder {
 
     /// Стрелка на краю экрана в сторону поглотителя (если он не виден).
     private mutating func buildZoneArrow(zp: SIMD2<Float>) {
-        let margin: Float = 28
+        let margin: Float = 36
         let inside = zp.x > margin && zp.x < w - margin && zp.y > margin + 150 && zp.y < h - margin
         if inside { return }
         let d = zp - SIMD2<Float>(cx, cy)
@@ -280,7 +280,7 @@ struct SceneBuilder {
         if game.probesOn && tip.y > h - 150 { tip.y = h - 150 }
         let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
-        let size: Float = 11
+        let size: Float = 19            // крупнее, яркость та же
         let center = tip - dir * (size * 0.3)
         var ship = rgb("#cc1414")                                           // цвет корабля
         ship.w = 0.25 * pulse
