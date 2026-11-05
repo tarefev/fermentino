@@ -242,28 +242,26 @@ struct SceneBuilder {
             let ty = hp.y + game.dy(bodies[n].pos.y, host.pos.y) * scale
             let nr = bodies[n].r * scale
             // долгое нажатие на кнопку. Выключение: кольцо стягивается к ядрышку и ярчает; сомкнулось — щуп
-            // выключен. Включение — то же в обратную сторону: кольцо расходится от ядрышка и тускнеет.
+            // выключен. Включение — то же самое, прокрученное задом наперёд: ядрышко сразу целое, кольцо
+            // стартует вплотную к нему, расходится с той же скоростью и тускнеет до исходной яркости.
             let hold = game.probeHoldProgress(s)
+            let isOff = s < game.probeOff.count && game.probeOff[s]
             if hold > 0 {
-                let isOff = s < game.probeOff.count && game.probeOff[s]
                 let closing = isOff ? 1 - hold : hold           // 1 — кольцо у самого ядрышка
                 var ring = col
                 ring.w = 0.35 + 0.6 * closing
-                if isOff { ring.w = 0.95 * (1 - hold) }         // расходясь, кольцо гаснет в ноль — без хлопка в конце
                 let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
             }
-            // выключенный щуп: ядрышко едва заметным пустым колечком; пока его включают, ядрышко нарастает внутри
-            if s < game.probeOff.count && game.probeOff[s] {
+            // выключенный щуп: ядрышко едва заметным пустым колечком (пока его не начали включать)
+            if isOff && hold <= 0 {
                 var faint = col
-                faint.w = 0.25 + 0.75 * hold
+                faint.w = 0.25
                 circle(tx, ty, nr, faint, inner: nr - 1)
-                if hold > 0 {
-                    // ядрышко растёт вместе с кольцом, ровно и сразу плотным: быстро вначале, плавно к концу.
-                    // (раньше оно набирало и размер, и плотность — почти всё появлялось в последний момент, хлопком)
-                    let grow = 1 - (1 - hold) * (1 - hold)
-                    circle(tx, ty, max(0.4, nr * grow), col)
-                }
+                continue
+            }
+            if isOff {
+                circle(tx, ty, nr, col)
                 continue
             }
             // после выстрела ядрышко улетело: новое нарастает на конце щупа за время перезарядки
