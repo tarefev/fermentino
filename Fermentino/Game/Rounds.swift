@@ -77,6 +77,16 @@ struct DustDef {
     var explode: ExplodeDef? = nil   // нестабильность плотного кома пыли (как у инертонов)
 }
 
+/// Щупы хоста: захват по валентности. Свободный щуп защёлкивает инертон на фиксированном расстоянии,
+/// занятые — хост упруго отбивает. Швырять можно только то, что на щупе.
+struct ProbeDef {
+    var k: Float = 300              // жёсткость щупа
+    var len: Float = 2.2            // длина в (rХоста + rИнертона)
+    var breakStretch: Float = 3     // срыв при растяжении > len·это
+    var kAngle: Float = 40000       // жёсткость угла щупа: щупы не гнутся, держат свои углы против любой толпы
+    var spin: Float = 0.5           // вращение креста щупов по часовой, рад/с игрового времени (оборот ~25 с)
+}
+
 /// Какие рычаги и строки HUD включены в туре.
 struct RoundControls {
     var hud = true          // служебные тексты вообще (HUD сверху, подсказка снизу)
@@ -103,6 +113,7 @@ struct RoundDef {
     var viscosity: Float? = nil     // вязкость среды в туре (nil = K.VISCOSITY)
     var dust: DustDef? = nil        // пыль по миру
     var ejectSpeed: Float? = nil    // скорость выброса в туре (nil = K.EJECT_SPEED); отдача ∝ ей
+    var probes: ProbeDef? = nil     // захват по щупам вместо «своих по близости»
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -127,7 +138,7 @@ enum Rounds {
             id: "flight", win: .reachZone,
             spawn: [],
             elements: [
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 0, kAngle: 300, control: "player", emblem: "ussr"),
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 4, kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -143,7 +154,8 @@ enum Rounds {
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
             dust: DustDef(n: 200, rMin: 2, rMax: 2, density: 100, minHostDist: 400, avoidZone: true,
                           explode: ExplodeDef(max: 9, r: 35, speed: 4000, burst: 4, rate: 0.95, rateRef: 12)),  // тяжёлые, редкие, вдали от хоста; ком ≥9 соседей взрывается, нечасто
-            ejectSpeed: 3300                // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
+            ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
+            probes: ProbeDef()              // четыре щупа хоста (valence: 4)
         ),
         RoundDef(
             id: "star", win: .star,

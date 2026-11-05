@@ -8,6 +8,12 @@
 import Foundation
 import Observation
 
+/// Вариант управления (тест): А — кнопки по щупам, Б — свайп.
+enum ControlMode {
+    case buttons
+    case swipe
+}
+
 enum MoleculeStatus {
     case notAssembled
     case haveAll
@@ -40,6 +46,9 @@ final class HUDModel {
     var winSub = ""
     var hasNext = false
     var controls = RoundControls()
+    var probesOn = false
+    var probeFilled: [Bool] = []
+    var controlMode: ControlMode = .buttons
     var narration = ""
     var narrationOpacity: Double = 0
 }

@@ -48,6 +48,9 @@ struct ContentView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
             }
+            if session.hud.probesOn {
+                ProbeControls(hud: session.hud, session: session)
+            }
             IntroView(hud: session.hud)
             NarrationView(hud: session.hud)
             WinView(hud: session.hud, session: session)
@@ -242,6 +245,79 @@ private struct MoleculeIcon: View {
             ctx.addFilter(.shadow(color: hubColor, radius: 5))
             ctx.fill(hub, with: .color(hubColor))
         }
+    }
+}
+
+// MARK: - Управление щупами (тест двух вариантов: А — кнопки, Б — свайп)
+
+private struct ProbeControls: View {
+    let hud: HUDModel
+    let session: GameSession
+
+    private let probeColors: [Color] = [
+        Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255),
+        Color(red: 0x16 / 255, green: 0xf0 / 255, blue: 0xe6 / 255),
+        Color(red: 1, green: 0x2d / 255, blue: 0xb0 / 255),
+        Color(red: 0x7d / 255, green: 0xf9 / 255, blue: 0xc5 / 255),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // переключатель варианта управления — только для теста
+            Button {
+                session.toggleControlMode()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("A").opacity(hud.controlMode == .buttons ? 1 : 0.35)
+                    Text("B").opacity(hud.controlMode == .swipe ? 1 : 0.35)
+                }
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundStyle(hudText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.black.opacity(0.35), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            // «отклеить последнее» — отдельно, над рядом щупов справа
+            HStack {
+                Spacer()
+                Button {
+                    session.undoLast()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(hudText)
+                        .frame(width: 52, height: 52)
+                        .background(Color.black.opacity(0.35), in: Circle())
+                        .overlay(Circle().stroke(hudText.opacity(0.5), lineWidth: 1.5))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 14)
+            // вариант А: четыре кнопки щупов в ряд по всей ширине
+            if hud.controlMode == .buttons {
+                HStack(spacing: 0) {
+                    ForEach(Array(hud.probeFilled.enumerated()), id: \.offset) { s, filled in
+                        Button {
+                            session.throwProbe(s)
+                        } label: {
+                            Circle()
+                                .fill(probeColors[s % probeColors.count].opacity(filled ? 0.9 : 0.15))
+                                .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.8), lineWidth: 2))
+                                .frame(width: 66, height: 66)
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 

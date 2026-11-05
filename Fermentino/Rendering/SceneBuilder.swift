@@ -115,7 +115,8 @@ struct SceneBuilder {
             if o.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * o.cap; col.w = 1 }
             let spin = game.gfxSpin * 0.8 + c.spinPhase      // 0.8 — скорость вращения электронов
             let orbitR = r * 0.7                               // 0.7 — радиус орбиты (ближе к краю)
-            let n = max(0, c.valence - c.bonds.count)
+            var n = max(0, c.valence - c.bonds.count)
+            if c.main && game.probesOn { n = 0 }           // у хоста свободные щупы рисуются штырями, не электронами
             let blur: Float = c.main ? 14 : 10
             var glow = col; glow.w = 0.55
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
@@ -197,6 +198,8 @@ struct SceneBuilder {
             }
         }
 
+        buildProbes(cam: cam)
+
         for c in 0..<game.cores.count where !game.cores[c].main { drawBody(c, cam: cam) }
         for c in 0..<game.cores.count where game.cores[c].main { drawBody(c, cam: cam) }
 
@@ -209,6 +212,41 @@ struct SceneBuilder {
         buildZoneArrow(zp: zp)
         buildMinimap(cam: cam)
         return scene
+    }
+
+    /// Щупы хоста: занятый — линия до пойманного тела, само тело залито цветом щупа; свободный — короткий штырь.
+    /// Цвет щупа совпадает с цветом его кнопки внизу экрана.
+    private mutating func buildProbes(cam: SIMD2<Float>) {
+        if !game.probesOn { return }
+        let bodies = game.bodies
+        let host = bodies[0]
+        let hp = screen(host.pos.x, host.pos.y, cam: cam)
+        let slots = game.cores[0].slots
+        for s in 0..<game.holds.count {
+            var col = K.PROBE_COLORS[s % K.PROBE_COLORS.count]
+            let j = game.holds[s]
+            if j >= 0 {
+                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
+                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
+                col.w = 0.9
+                // три линии рядом — щуп толще одного пикселя
+                let ddx = ax - hp.x, ddy = ay - hp.y
+                let dl = max(1, simd_length(SIMD2<Float>(ddx, ddy)))
+                let nx = -ddy / dl * 0.7, ny = ddx / dl * 0.7
+                line(hp.x, hp.y, ax, ay, col)
+                line(hp.x + nx, hp.y + ny, ax + nx, ay + ny, col)
+                line(hp.x - nx, hp.y - ny, ax - nx, ay - ny, col)
+                col.w = 1
+                circle(ax, ay, bodies[j].r * scale, col)      // пойманный шар целиком в цвете своего щупа
+                continue
+            }
+            guard s < slots.count else { continue }
+            let a = host.ang + slots[s]
+            let r0 = host.r * scale + 2, r1 = host.r * scale + 12
+            col.w = 0.6
+            line(hp.x + cos(a) * r0, hp.y + sin(a) * r0, hp.x + cos(a) * r1, hp.y + sin(a) * r1, col)
+            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2, col)
+        }
     }
 
     /// Стрелка на краю экрана в сторону поглотителя (если он не виден).
@@ -226,12 +264,13 @@ struct SceneBuilder {
         if abs(dir.x) > 1e-4 { t = min(t, halfW / abs(dir.x)) }
         if abs(dir.y) > 1e-4 { t = min(t, halfH / abs(dir.y)) }
         var tip = SIMD2<Float>(cx, cy) + dir * t
-        // не залезать на миникарту (правый нижний угол на телефоне)
-        if w < 500 {
-            let mmS: Float = 120
-            let mmX = w - mmS - 12, mmY = h - mmS - 34
-            if tip.x > mmX - 18 && tip.y > mmY - 18 { tip.y = mmY - 18 }
+        // не залезать на миникарту
+        let mm = minimapRect()
+        if tip.x > mm.x - 18 && tip.x < mm.x + mm.s + 18 && tip.y > mm.y - 18 && tip.y < mm.y + mm.s + 18 {
+            if mm.y < h / 2 { tip.y = mm.y + mm.s + 18 } else { tip.y = mm.y - 18 }
         }
+        // и на ряд кнопок щупов внизу
+        if game.probesOn && tip.y > h - 150 { tip.y = h - 150 }
         let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
         let size: Float = 11
@@ -243,13 +282,21 @@ struct SceneBuilder {
         arrow(center.x, center.y, size, angle: ang, ship)
     }
 
+    /// Где стоит миникарта. Широкий экран — вверху справа, как в прототипе. Телефон: с HUD — внизу
+    /// справа (HUD занимает верх), без HUD — вверху справа под вырезом (низ отдан кнопкам).
+    private func minimapRect() -> (x: Float, y: Float, s: Float) {
+        let phone = w < 500
+        let s: Float = phone ? 110 : 180
+        let x = w - s - 12
+        if !phone { return (x, 12, s) }
+        if game.round.controls.hud { return (x, h - s - 34, s) }
+        return (x, 62, s)
+    }
+
     private mutating func buildMinimap(cam: SIMD2<Float>) {
         let bodies = game.bodies
-        // на телефоне миникарта внизу справа, чтобы не перекрывать HUD; на широком экране — как в прототипе
-        let phone = w < 500
-        let mmS: Float = phone ? 120 : 180
-        let mmX = w - mmS - 12
-        let mmY: Float = phone ? h - mmS - 34 : 12
+        let mm = minimapRect()
+        let mmS = mm.s, mmX = mm.x, mmY = mm.y
         let mmc = mmX + mmS / 2, mmm = mmY + mmS / 2
         let sc = mmS / K.WORLD_W
         rect(mmX, mmY, mmS, mmS, rgba(5, 8, 14, 0.45))

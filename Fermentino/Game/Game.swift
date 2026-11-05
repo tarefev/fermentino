@@ -73,6 +73,12 @@ final class Game {
     private(set) var round: RoundDef = Rounds.all[Progress.roundIndex]
     private var spawnTimer: Float = 0
 
+    // ---- щупы хоста (захват по валентности)
+    private(set) var holds: [Int] = []       // слот хоста → индекс тела или -1
+    private var holdOrder: [Int] = []        // слоты в порядке захвата, последний — самый свежий
+    var probesOn: Bool { round.probes != nil }
+    var controlMode: ControlMode = .buttons
+
     // ---- реплики диспетчерской (обучение)
     private var narrationQueue: [String] = []
     private var narrationShownAt: Float = -1
@@ -218,6 +224,11 @@ final class Game {
     /// Матрицы связей и слотов → буферы GPU.
     private func syncBondsToGPU() {
         let mc = Int(FERM_MAX_CORES), ms = Int(FERM_MAX_SLOTS)
+        for s in 0..<ms {
+            var v: Int32 = -1
+            if s < holds.count && holds[s] >= 0 { v = Int32(holds[s]) }
+            sim.holds[s] = v
+        }
         for i in 0..<mc {
             for j in 0..<mc {
                 let idx = i * mc + j
@@ -338,6 +349,12 @@ final class Game {
             cores.append(info)
             count += 1
         }
+        holds = []
+        holdOrder = []
+        if let pr = round.probes {
+            holds = Array(repeating: -1, count: cores[0].slots.count)
+            bodies[0].kAngle = pr.kAngle
+        }
 
         for _ in 0..<K.N_ANCHORS {
             let m = rnd(K.ANCHOR_MASS_MIN, K.ANCHOR_MASS_MAX)
@@ -448,10 +465,10 @@ final class Game {
 
     // MARK: - Выброс (§4)
 
-    private func doEject(_ best: Int, _ dxn: Float, _ dyn: Float) {
+    private func doEject(_ best: Int, _ dxn: Float, _ dyn: Float, strength: Float = 1) {
         bodies[best].heat = 1
         say("flight.moving")
-        let ejectSpeed = round.ejectSpeed ?? K.EJECT_SPEED
+        let ejectSpeed = (round.ejectSpeed ?? K.EJECT_SPEED) * strength
         let es = ejectSpeed * sqrt(1 + Float(yellowCount) * K.ENERGY_PER_YELLOW) * (K.EJECT_REF_MASS / bodies[best].m)
         if ejectMode == .intoCore {
             let ctr = mainCore
@@ -534,6 +551,88 @@ final class Game {
         ejectQueue.removeAll(keepingCapacity: true)
     }
 
+    // MARK: - Щупы: захват по валентности, бросок только с щупа
+
+    private func releaseProbe(_ s: Int) {
+        holds[s] = -1
+        holdOrder.removeAll { $0 == s }
+    }
+
+    /// Ближайший по углу свободный щуп к мировому направлению dir.
+    private func nearestFreeProbe(dir: Float) -> Int? {
+        let usedByBonds = Set(cores[0].bonds.values)
+        var best: Int? = nil
+        var bestErr = Float.infinity
+        for s in 0..<holds.count where holds[s] < 0 && !usedByBonds.contains(s) {
+            var e = dir - (bodies[0].ang + cores[0].slots[s])
+            e = atan2(sin(e), cos(e))
+            if abs(e) < bestErr { bestErr = abs(e); best = s }
+        }
+        return best
+    }
+
+    private func updateHolds() {
+        guard let pr = round.probes, !bodies[0].isCaptured else { return }
+        let host = bodies[0]
+        // срыв при перерастяжении щупа
+        for s in 0..<holds.count where holds[s] >= 0 {
+            let j = holds[s]
+            let ddx = dx(bodies[j].pos.x, host.pos.x), ddy = dy(bodies[j].pos.y, host.pos.y)
+            let L = (host.r + bodies[j].r) * pr.len
+            if hypot(ddx, ddy) > L * pr.breakStretch || bodies[j].isCaptured { releaseProbe(s) }
+        }
+        // защёлка: свободный инертон на длине щупа и есть свободный щуп
+        if !holds.contains(-1) { return }
+        for o in cores.count..<count where bodies[o].type == BodyType.atom {
+            if bodies[o].heat > 0 || bodies[o].isCaptured || holds.contains(o) { continue }
+            let ddx = dx(bodies[o].pos.x, host.pos.x), ddy = dy(bodies[o].pos.y, host.pos.y)
+            let L = (host.r + bodies[o].r) * pr.len
+            if hypot(ddx, ddy) > L * 1.1 { continue }
+            guard let s = nearestFreeProbe(dir: atan2(ddy, ddx)) else { break }
+            holds[s] = o
+            holdOrder.append(s)
+        }
+    }
+
+    /// Вариант А: швырнуть то, что на щупе s, вдоль щупа наружу; шар получает отдачу.
+    func throwProbe(_ s: Int, strength: Float = 1) {
+        guard probesOn, s >= 0, s < holds.count, holds[s] >= 0, !winning else { return }
+        let j = holds[s]
+        releaseProbe(s)
+        computeBody()
+        var ddx = dx(bodies[j].pos.x, bodies[0].pos.x), ddy = dy(bodies[j].pos.y, bodies[0].pos.y)
+        var len = hypot(ddx, ddy); if len == 0 { len = 1 }
+        ddx /= len; ddy /= len
+        doEject(j, ddx, ddy, strength: strength)
+    }
+
+    /// Вариант Б: свайп — летит спутник, лучше всего лежащий по направлению свайпа, в сторону свайпа.
+    func throwInDirection(_ dxIn: Float, _ dyIn: Float, strength: Float) {
+        guard probesOn, !winning else { return }
+        var len = hypot(dxIn, dyIn); if len == 0 { return }
+        let dxn = dxIn / len, dyn = dyIn / len
+        var bestSlot = -1
+        var bestProj = -Float.infinity
+        for s in 0..<holds.count where holds[s] >= 0 {
+            let j = holds[s]
+            let px = dx(bodies[j].pos.x, bodies[0].pos.x), py = dy(bodies[j].pos.y, bodies[0].pos.y)
+            len = hypot(px, py); if len == 0 { len = 1 }
+            let proj = (px * dxn + py * dyn) / len
+            if proj > bestProj { bestProj = proj; bestSlot = s }
+        }
+        if bestSlot < 0 { return }
+        let j = holds[bestSlot]
+        releaseProbe(bestSlot)
+        computeBody()
+        doEject(j, dxn, dyn, strength: strength)
+    }
+
+    /// «Отклеить последнее»: снять самый свежий атом, швырнуть его, шар получает отдачу.
+    func undoLast() {
+        guard let s = holdOrder.last else { return }
+        throwProbe(s)
+    }
+
     // MARK: - Приток инертонов (обучающие туры)
 
     private func runSpawner(_ dt: Float) {
@@ -566,6 +665,11 @@ final class Game {
 
     func updateMine() {
         for o in 0..<count where bodies[o].type == BodyType.atom { bodies[o].flags &= ~BodyFlag.mine }
+        if probesOn {
+            // своё — только то, что держится на щупах
+            for j in holds where j >= 0 { bodies[j].flags |= BodyFlag.mine }
+            return
+        }
         var queue = body
         var qi = 0
         while qi < queue.count {
@@ -625,6 +729,12 @@ final class Game {
         p.worldSize = SIMD2<Float>(K.WORLD_W, K.WORLD_H)
         p.zonePos = SIMD2<Float>(zone.x, zone.y)
         p.zoneMass = zone.m
+        if let pr = round.probes {
+            p.holdOn = 1
+            p.holdK = pr.k
+            p.holdLen = pr.len
+            p.hostSpin = pr.spin
+        }
         return p
     }
 
@@ -638,6 +748,7 @@ final class Game {
         gravBubbleOn = gravMode == 1 || (gravMode == -1 && pulseTimer >= K.PULSE_PERIOD * 0.5)
         processEjectQueue()
         updateBonds()
+        updateHolds()
         if winning {
             zone.bhT += dt
             zone.m = min(K.BH_MAX, K.BH_MAX * zone.bhT / K.BH_RAMP)
@@ -832,6 +943,9 @@ final class Game {
         set(&h.goodBonds, goodBonds)
         let status: MoleculeStatus = assembled ? .assembled : (haveAll ? .haveAll : .notAssembled)
         set(&h.molStatus, status)
+        set(&h.probesOn, probesOn)
+        set(&h.probeFilled, holds.map { $0 >= 0 })
+        set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
         set(&h.showBonds, showBonds)
         set(&h.ejectModeName, ejectMode.rawValue)
@@ -854,6 +968,7 @@ final class Game {
 
     /// Тап по экрану: мировая точка (хост в центре экрана) → выстрел ближайшим инертоном.
     func tap(at point: CGPoint, viewSize: CGSize, scale: Float) {
+        if probesOn { return }          // управление без тапов: кнопки щупов или свайп
         let cam = mainCore
         let wx = cam.pos.x + Float(point.x - viewSize.width / 2) / scale
         let wy = cam.pos.y + Float(point.y - viewSize.height / 2) / scale

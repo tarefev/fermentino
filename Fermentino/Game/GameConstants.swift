@@ -71,6 +71,8 @@ enum K {
     static let COL_ANCHOR = rgb("#7a6a5c")
     static let COL_ANCHOR_EDGE = rgb("#b8a48f")
     static let RGB_HOT = SIMD4<Float>(235 / 255, 80 / 255, 60 / 255, 1)
+    // цвета щупов хоста: кнопка внизу того же цвета, что её щуп
+    static let PROBE_COLORS: [SIMD4<Float>] = [rgb("#ffd60a"), rgb("#16f0e6"), rgb("#ff2db0"), rgb("#7df9c5")]
 
     // Чёрная дыра поглотителя
     static let BH_MAX: Float = 1e8

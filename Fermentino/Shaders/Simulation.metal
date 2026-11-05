@@ -43,11 +43,18 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                           device const float *bondLen   [[buffer(6)]],
                           device const float *slots     [[buffer(7)]],
                           constant SimParams &p         [[buffer(8)]],
+                          device const int *holds       [[buffer(9)]],
                           uint i [[thread_position_in_grid]])
 {
     if (i >= p.bodyCount) return;
 
     const Body A = bodies[i];
+
+    // щупы хоста: holds[s] = индекс тела на слоте s или -1. Для не-хоста — на каком слоте меня держат.
+    int mySlot = -1;
+    if (p.holdOn != 0u && i != 0u) {
+        for (uint s = 0; s < FERM_MAX_SLOTS; ++s) if (holds[s] == int(i)) mySlot = int(s);
+    }
     const float2 hw = p.worldSize * 0.5;
     const float cutEnd2 = p.CUT_END * p.CUT_END;
     const float instR2 = p.INSTAB_R * p.INSTAB_R;
@@ -102,11 +109,42 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         if (r < contact) {
             const float mu = mm / (A.m + B.m);
             fnet -= p.K_REP * mu * (contact - r);
-            if (!aAnchor && B.type != BODY_ANCHOR) {
+            // хост при захвате по щупам отбивает упруго: масса не налипает на шар
+            const bool hostElastic = p.holdOn != 0u && (i == 0u || j == 0u);
+            if (!aAnchor && B.type != BODY_ANCHOR && !hostElastic) {
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
                 float stick = 1.0;
                 if (p.V_STICK > 0.0) stick = 1.0 - (1.0 - p.STICK_MIN) * exp(-abs(vn) / p.V_STICK);
                 fnet -= stick * mu * vn / p.hSub;
+            }
+        }
+
+        // щуп: связь хост — пойманное тело. Длина держит на расстоянии, угол слота хоста — по месту.
+        if (p.holdOn != 0u) {
+            int hs = -1;
+            if (i == 0u) {
+                for (uint s = 0; s < FERM_MAX_SLOTS; ++s) if (holds[s] == int(j)) hs = int(s);
+            } else if (j == 0u) {
+                hs = mySlot;
+            }
+            if (hs >= 0) {
+                const float L = contact * p.holdLen;
+                const float mu = mm / (A.m + B.m);
+                const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
+                fnet += p.holdK * mu * (r - L) - p.BOND_DAMP * mu * vn;
+                const float phi = atan2(dy, dx);
+                const float px = -ny, py = nx;
+                const float vtB = (B.vel.x - A.vel.x) * px + (B.vel.y - A.vel.y) * py;
+                float fB = 0.0;
+                if (i == 0u) {
+                    const float eHost = wrapAngle(phi - (A.ang + slots[hs]));
+                    tq += eHost;
+                    fB = -mu * (A.kAngle * eHost) - p.BOND_DAMP * mu * vtB;
+                } else {
+                    const float eHost = wrapAngle(phi + M_PI_F - (B.ang + slots[hs]));
+                    fB = -mu * (B.kAngle * eHost) - p.BOND_DAMP * mu * vtB;
+                }
+                acc -= float2(px, py) * (fB / A.m);
             }
         }
 
@@ -176,6 +214,7 @@ kernel void integrate(device Body *bodies           [[buffer(0)]],
             o.angVel += p.K_ANGLE_TORQUE * o.tq * h;
             o.angVel *= max(0.0, 1.0 - p.ANG_DAMP * h);
             o.ang += o.angVel * h;
+            if (i == 0u && p.holdOn != 0u) o.ang += p.hostSpin * h;   // медленное вращение креста щупов
         }
     }
     bodies[i] = o;

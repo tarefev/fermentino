@@ -24,6 +24,26 @@ final class GameSession {
         renderer?.game.press(key)
     }
 
+    func throwProbe(_ s: Int) {
+        renderer?.game.throwProbe(s)
+    }
+
+    func undoLast() {
+        renderer?.game.undoLast()
+    }
+
+    func toggleControlMode() {
+        guard let g = renderer?.game else { return }
+        g.controlMode = g.controlMode == .buttons ? .swipe : .buttons
+    }
+
+    /// Свайп в точках экрана и его скорость (pt/с): вариант Б — бросок по направлению свайпа.
+    func swipe(dx: CGFloat, dy: CGFloat, speed: CGFloat) {
+        guard let g = renderer?.game, g.controlMode == .swipe else { return }
+        let strength = Float(min(1.8, max(0.4, speed / 1200)))
+        g.throwInDirection(Float(dx), Float(dy), strength: strength)
+    }
+
     /// Тест: вернуться к самому началу истории — пролог, затем тур 1 с нуля.
     func restartToStory() {
         Progress.roundIndex = 0
@@ -48,6 +68,9 @@ struct MetalView: UIViewRepresentable {
         view.onLongPress = { [session] in
             session.restartToStory()     // тест: долгое нажатие 2 с = к началу истории
         }
+        view.onSwipe = { [session] dx, dy, speed in
+            session.swipe(dx: dx, dy: dy, speed: speed)
+        }
         return view
     }
 
@@ -57,23 +80,43 @@ struct MetalView: UIViewRepresentable {
 final class TouchMTKView: MTKView {
     var onTap: ((CGPoint, CGSize) -> Void)?
     var onLongPress: (() -> Void)?
+    var onSwipe: ((CGFloat, CGFloat, CGFloat) -> Void)?
     private var longPressTimer: Timer?
+    private var startPoint = CGPoint.zero
+    private var startTime: TimeInterval = 0
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
-        onTap?(t.location(in: self), bounds.size)
+        startPoint = t.location(in: self)
+        startTime = t.timestamp
+        onTap?(startPoint, bounds.size)
         longPressTimer?.invalidate()
         longPressTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             self?.onLongPress?()
         }
     }
 
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = touches.first else { return }
+        let p = t.location(in: self)
+        if hypot(p.x - startPoint.x, p.y - startPoint.y) > 10 { cancelLongPress() }   // палец поехал — это не удержание
+    }
+
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        longPressTimer?.invalidate()
-        longPressTimer = nil
+        cancelLongPress()
+        guard let t = touches.first else { return }
+        let p = t.location(in: self)
+        let dx = p.x - startPoint.x, dy = p.y - startPoint.y
+        let dist = hypot(dx, dy)
+        let dt = max(0.016, t.timestamp - startTime)
+        if dist >= 24 && dt <= 0.7 { onSwipe?(dx, dy, dist / CGFloat(dt)) }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        cancelLongPress()
+    }
+
+    private func cancelLongPress() {
         longPressTimer?.invalidate()
         longPressTimer = nil
     }
