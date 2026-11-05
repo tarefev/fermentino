@@ -286,23 +286,23 @@ private struct ProbeControls: View {
             // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
-                    ForEach(Array(hud.probeFilled.enumerated()), id: \.offset) { s, filled in
-                        // оттенок красного = щуп: занятый — заливка, пустой — контур, выключенный — едва виден.
-                        // Тап бросает, долгое нажатие выключает / включает щуп.
+                    ForEach(Array(hud.probeFill.enumerated()), id: \.offset) { s, fill in
+                        // оттенок красного = щуп. Заливка снизу = сколько на щупе (стрелять нечем — пусто),
+                        // выключенный — едва виден. Тап бросает, долгое нажатие выключает / включает щуп:
+                        // пока держат, кнопка плавно перекрашивается в то состояние, в которое перейдёт.
                         let off = s < hud.probeOff.count && hud.probeOff[s]
-                        let hold = s < hud.probeHold.count ? CGFloat(hud.probeHold[s]) : 0
+                        let hold = s < hud.probeHold.count ? Double(hud.probeHold[s]) : 0
+                        let on = off ? hold : 1 - hold          // 1 — выглядит включённой, 0 — выключенной
+                        let col = probeColors[s % probeColors.count]
                         Circle()
-                            .fill(probeColors[s % probeColors.count].opacity(off ? 0 : (filled ? 1 : 0.12)))
-                            .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(off ? 0.22 : 0.9), lineWidth: 2))
-                            // долгое нажатие: кольцо заполняется по кругу, кнопка чуть сжимается
-                            .overlay(
-                                Circle()
-                                    .trim(from: 0, to: hold)
-                                    .stroke(hudText, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .rotationEffect(.degrees(-90))
-                                    .padding(-5)
-                            )
-                            .scaleEffect(1 - 0.1 * hold)
+                            .fill(col.opacity(0.12 * on))
+                            .overlay(alignment: .bottom) {
+                                Rectangle()
+                                    .fill(col.opacity(on))
+                                    .frame(height: buttonSize * CGFloat(fill))
+                            }
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(col.opacity(0.22 + 0.68 * on), lineWidth: 2))
                             .frame(width: buttonSize, height: buttonSize)
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())

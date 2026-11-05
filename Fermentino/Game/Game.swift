@@ -852,6 +852,7 @@ final class Game {
 
     private var splitTick = 0
     private var statsSplits = 0
+    private var statsMaxClump = 0
 
     /// Сцепленный комок свободной пыли больше порога делится пополам: случайная линия через центр масс,
     /// половины получают равные противоположные скорости — расходятся двумя кусками, а не пылью.
@@ -902,14 +903,33 @@ final class Game {
             // делим по медиане проекции на нормаль: половины равны с точностью до одного зерна
             let order = (0..<members.count).sorted { simd_dot(rel[$0] - centre, normal) < simd_dot(rel[$1] - centre, normal) }
             let half = members.count / 2
+            // Скорость разлёта считаем от самого комка: сколько энергии нужно половинам, чтобы уйти из
+            // притяжения друг друга. Сила пары G·m·m/(r²+ε²) → её потенциал G·m·m/ε·(π/2 − atan(r/ε)).
+            let eps = K.EPS2.squareRoot()
+            var bind: Float = 0, massA: Float = 0, massB: Float = 0
+            for ra in 0..<half {
+                let ka = members[order[ra]]
+                let ma = bodies[idx[ka]].m
+                massA += ma
+                for rb in half..<members.count {
+                    let kb = members[order[rb]]
+                    let r = simd_length(rel[order[rb]] - rel[order[ra]])
+                    bind += K.G * ma * bodies[idx[kb]].m / eps * (.pi / 2 - atan(r / eps))
+                }
+            }
+            for rb in half..<members.count { massB += bodies[idx[members[order[rb]]]].m }
+            let reduced = massA * massB / (massA + massB)
+            // относительная скорость половин: с запасом над скоростью убегания (вязкость и липкость на разрезе)
+            let vRel = max(2 * d.splitSpeed, d.splitBoost * (2 * bind / reduced).squareRoot())
+            let vA = vRel * massB / (massA + massB), vB = vRel * massA / (massA + massB)   // импульс сохраняется
             for (rank, m) in order.enumerated() {
                 let o = idx[members[m]]
-                let sign: Float = rank < half ? -1 : 1
-                bodies[o].vel += normal * (sign * d.splitSpeed)
+                if rank < half { bodies[o].vel -= normal * vA } else { bodies[o].vel += normal * vB }
                 bodies[o].heat = 1
             }
             statsSplits += 1
         }
+        statsMaxClump = max(statsMaxClump, comps.values.map { $0.count }.max() ?? 0)
     }
 
     // ---- отладочная статистика (включается переменной окружения FERM_STATS=1)
@@ -940,9 +960,9 @@ final class Game {
         }
         dust.sort(); atoms.sort()
         func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
-        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) splits=\(statsSplits) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
+        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) splits=\(statsSplits) maxClump=\(statsMaxClump) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
         statsBursts = [:]
-        statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0; statsSplits = 0
+        statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0; statsSplits = 0; statsMaxClump = 0
     }
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
@@ -1216,7 +1236,11 @@ final class Game {
         let status: MoleculeStatus = assembled ? .assembled : (haveAll ? .haveAll : .notAssembled)
         set(&h.molStatus, status)
         set(&h.probesOn, probesOn)
-        set(&h.probeFilled, held.map { !$0.isEmpty })
+        set(&h.probeFill, (0..<held.count).map { s -> Float in
+            // щуп может выстрелить — показываем, сколько на нём: одно своё ядрышко уже заметно, 12 зёрен — полная
+            guard let pr = round.probes, !probeOff[s], probeReload[s] <= 0 else { return 0 }
+            return 0.2 + 0.8 * min(1, Float(held[s].count) / Float(max(1, pr.maxClump)))
+        })
         set(&h.probeOff, probeOff)
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
