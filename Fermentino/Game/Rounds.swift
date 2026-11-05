@@ -118,6 +118,7 @@ struct RoundDef {
     var dust: DustDef? = nil        // пыль по миру
     var ejectSpeed: Float? = nil    // скорость выброса в туре (nil = K.EJECT_SPEED); отдача ∝ ей
     var probes: ProbeDef? = nil     // захват по щупам вместо «своих по близости»
+    var maxSpeed: Float? = nil      // потолок скорости в туре (nil = K.MAX_SPEED)
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -145,7 +146,7 @@ enum Rounds {
                 "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
-                                     explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
+                                     explode: ExplodeDef(max: 8, r: 35, speed: 8000, burst: 8, rate: 2, rateRef: 16)),   // ком от 9 инертонов кипит; разлёт вдвое сильнее
             ],
             interactions: [],
             intro: [],
@@ -156,10 +157,11 @@ enum Rounds {
             spawner: SpawnerDef(interval: 1.5, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
-            dust: DustDef(n: 1200, rMin: 1.3, rMax: 1.3, density: 240, minHostDist: 400, avoidZone: true,
+            dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 240, minHostDist: 400, avoidZone: true,
                           explode: ExplodeDef(max: 14, r: 35, speed: 2200, burst: 4, rate: 0.5, rateRef: 12)),  // масса зерна ~400; ком ≥14 соседей взрывается редко и вдвое слабее
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            probes: ProbeDef()              // пять щупов хоста, по лучам звезды
+            probes: ProbeDef(),             // пять щупов хоста, по лучам звезды
+            maxSpeed: 8000                  // чтобы взрыв инертонов мог разбрасывать вдвое быстрее базового потолка
         ),
         RoundDef(
             id: "star", win: .star,
