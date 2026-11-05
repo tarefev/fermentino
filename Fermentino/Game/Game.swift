@@ -797,6 +797,8 @@ final class Game {
     private let statsOn = ProcessInfo.processInfo.environment["FERM_STATS"] == "1"
     private var statsT: Float = 0
     private var statsBursts: [UInt32: Int] = [:]
+    private var statsFrames = 0, statsSteps = 0
+    private var statsPhysMs: Double = 0, statsGpuMs: Double = 0
 
     private func printStats(_ dt: Float) {
         guard statsOn else { return }
@@ -819,8 +821,9 @@ final class Game {
         }
         dust.sort(); atoms.sort()
         func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
-        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count })")
+        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
         statsBursts = [:]
+        statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0
     }
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
@@ -889,7 +892,9 @@ final class Game {
         }
         syncBondsToGPU()
         let h = dt * K.TIME_SCALE / Float(K.SUBSTEPS)
+        let gpuT0 = CACurrentMediaTime()
         sim.run(params: makeParams(hSub: h), substeps: K.SUBSTEPS)
+        statsGpuMs += (CACurrentMediaTime() - gpuT0) * 1000
 
         for o in 0..<count where bodies[o].type != BodyType.anchor {
             bodies[o].pos.x = Game.wrapCoord(bodies[o].pos.x, K.WORLD_W)
@@ -1034,7 +1039,12 @@ final class Game {
         if elapsed > 0.05 { elapsed = 0.05 }
         acc += elapsed
         var steps = 0
-        while acc >= K.DT && steps < 5 { stepPhysics(K.DT); acc -= K.DT; steps += 1 }
+        while acc >= K.DT && steps < 5 {
+            let t0 = CACurrentMediaTime()
+            stepPhysics(K.DT); acc -= K.DT; steps += 1
+            statsPhysMs += (CACurrentMediaTime() - t0) * 1000; statsSteps += 1
+        }
+        statsFrames += 1
         if steps == 5 { acc = 0 }
         if winning { advanceCapture(elapsed) }
         if !won { checkWin() }
