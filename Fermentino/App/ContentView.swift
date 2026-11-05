@@ -286,18 +286,17 @@ private struct ProbeControls: View {
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
                     ForEach(Array(hud.probeFilled.enumerated()), id: \.offset) { s, filled in
-                        Button {
-                            session.throwProbe(s)
-                        } label: {
-                            // оттенок красного = щуп: занятый — заливка, пустой — только контур
-                            Circle()
-                                .fill(probeColors[s % probeColors.count].opacity(filled ? 1 : 0.12))
-                                .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.9), lineWidth: 2))
-                                .frame(width: buttonSize, height: buttonSize)
-                                .frame(maxWidth: .infinity)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                        // оттенок красного = щуп: занятый — заливка, пустой — контур, выключенный — едва виден.
+                        // Тап бросает, долгое нажатие выключает / включает щуп.
+                        let off = s < hud.probeOff.count && hud.probeOff[s]
+                        Circle()
+                            .fill(probeColors[s % probeColors.count].opacity(off ? 0 : (filled ? 1 : 0.12)))
+                            .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(off ? 0.22 : 0.9), lineWidth: 2))
+                            .frame(width: buttonSize, height: buttonSize)
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture { session.throwProbe(s) }
+                            .onLongPressGesture(minimumDuration: 0.4) { session.toggleProbe(s) }
                     }
                 } else {
                     Spacer()

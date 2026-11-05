@@ -243,6 +243,12 @@ struct SceneBuilder {
             }
             let a = host.ang + slots[s]
             let tx = hp.x + cos(a) * tipR, ty = hp.y + sin(a) * tipR
+            // выключенный щуп: едва заметное пустое колечко
+            if s < game.probeOff.count && game.probeOff[s] {
+                col.w = 0.22
+                circle(tx, ty, 2.6, col, inner: 1.6)
+                continue
+            }
             // перезарядка после выстрела: тусклое кольцо, которое стягивается к концу щупа
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }

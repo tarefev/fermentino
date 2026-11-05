@@ -28,6 +28,10 @@ final class GameSession {
         renderer?.game.throwProbe(s)
     }
 
+    func toggleProbe(_ s: Int) {
+        renderer?.game.toggleProbe(s)
+    }
+
     func undoLast() {
         renderer?.game.undoLast()
     }

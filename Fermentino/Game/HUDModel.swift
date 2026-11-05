@@ -48,6 +48,7 @@ final class HUDModel {
     var controls = RoundControls()
     var probesOn = false
     var probeFilled: [Bool] = []
+    var probeOff: [Bool] = []            // щуп выключен долгим нажатием
     var controlMode: ControlMode = .buttons
     var narration = ""
     var narrationOpacity: Double = 0
