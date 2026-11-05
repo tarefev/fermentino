@@ -262,6 +262,8 @@ private struct ProbeControls: View {
         Color(red: 1, green: 0x8a / 255, blue: 0x3a / 255),
     ]
 
+    private let buttonSize: CGFloat = 54
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // переключатель варианта управления — только для теста
@@ -280,25 +282,9 @@ private struct ProbeControls: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            // «отклеить последнее» — отдельно, над рядом щупов справа
-            HStack {
-                Spacer()
-                Button {
-                    session.undoLast()
-                } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(hudText)
-                        .frame(width: 52, height: 52)
-                        .background(Color.black.opacity(0.35), in: Circle())
-                        .overlay(Circle().stroke(hudText.opacity(0.5), lineWidth: 1.5))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.bottom, 14)
-            // вариант А: кнопки щупов в ряд по всей ширине, по одной на щуп
-            if hud.controlMode == .buttons {
-                HStack(spacing: 0) {
+            // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
+            HStack(spacing: 0) {
+                if hud.controlMode == .buttons {
                     ForEach(Array(hud.probeFilled.enumerated()), id: \.offset) { s, filled in
                         Button {
                             session.throwProbe(s)
@@ -306,13 +292,28 @@ private struct ProbeControls: View {
                             Circle()
                                 .fill(probeColors[s % probeColors.count].opacity(filled ? 0.9 : 0.15))
                                 .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.8), lineWidth: 2))
-                                .frame(width: 60, height: 60)
+                                .frame(width: buttonSize, height: buttonSize)
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
+                } else {
+                    Spacer()
                 }
+                Button {
+                    session.undoLast()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(hudText)
+                        .frame(width: buttonSize, height: buttonSize)
+                        .background(Color.black.opacity(0.35), in: Circle())
+                        .overlay(Circle().stroke(hudText.opacity(0.5), lineWidth: 2))
+                        .frame(maxWidth: hud.controlMode == .buttons ? .infinity : nil)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 12)
