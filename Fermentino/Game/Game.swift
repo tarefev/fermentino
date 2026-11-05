@@ -86,8 +86,8 @@ final class Game {
     func probeHoldProgress(_ s: Int) -> Float {
         guard let pr = round.probes, s < probePress.count else { return 0 }
         let t = probePress[s]
-        if t < 0 || t == .infinity { return 0 }
-        return min(1, t / pr.holdTime)
+        if t < pr.holdDelay || t == .infinity { return 0 }
+        return min(1, (t - pr.holdDelay) / max(0.01, pr.holdTime - pr.holdDelay))
     }
     var probesOn: Bool { round.probes != nil }
     var controlMode: ControlMode = .buttons
