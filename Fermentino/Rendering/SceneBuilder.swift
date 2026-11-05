@@ -222,49 +222,35 @@ struct SceneBuilder {
     }
 
     /// Щупы хоста: пять оттенков красного от светлого к тёмному, кнопка внизу того же оттенка.
-    /// Пойманный шар залит оттенком своего щупа, у свободного щупа маленькая точка того же оттенка.
+    /// На конце каждого щупа постоянное ядрышко; зёрна комка, прицепившиеся к нему, залиты тем же оттенком.
     private mutating func buildProbes(cam: SIMD2<Float>) {
         if !game.probesOn { return }
         let bodies = game.bodies
         let host = bodies[0]
         let hp = screen(host.pos.x, host.pos.y, cam: cam)
-        let slots = game.cores[0].slots
         guard let pr = game.round.probes else { return }
-        let tipR = pr.length * scale
         for s in 0..<game.held.count {
-            guard s < slots.count else { continue }
+            guard s < game.nuclei.count else { continue }
             var col = K.PROBE_COLORS[s % K.PROBE_COLORS.count]
-            if !game.held[s].isEmpty {
-                // комок на щупе: каждое зерно залито оттенком своего щупа
-                for j in game.held[s] {
-                    let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
-                    let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
-                    circle(ax, ay, bodies[j].r * scale + 0.4, col)
-                }
-                continue
+            for j in game.held[s] {
+                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
+                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
+                circle(ax, ay, bodies[j].r * scale + 0.4, col)
             }
-            let a = host.ang + slots[s]
-            let tx = hp.x + cos(a) * tipR, ty = hp.y + sin(a) * tipR
-            // выключенный щуп: едва заметное пустое колечко
+            let n = game.nuclei[s]
+            let tx = hp.x + game.dx(bodies[n].pos.x, host.pos.x) * scale
+            let ty = hp.y + game.dy(bodies[n].pos.y, host.pos.y) * scale
+            let nr = bodies[n].r * scale
+            // выключенный щуп: ядрышко едва заметным пустым колечком
             if s < game.probeOff.count && game.probeOff[s] {
-                col.w = 0.22
-                circle(tx, ty, 2.6, col, inner: 1.6)
+                col.w = 0.25
+                circle(tx, ty, nr, col, inner: nr - 1)
                 continue
             }
-            // перезарядка после выстрела: тусклое кольцо, которое стягивается к концу щупа
+            // после выстрела ядрышко улетело: новое нарастает на конце щупа за время перезарядки
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
-            if reload > 0 {
-                col.w = 0.5
-                let rr = 2.5 + 6 * reload
-                circle(tx, ty, rr, col, inner: rr - 1.2)
-                continue
-            }
-            // рывок пустого щупа по нажатию кнопки: точка чуть выросла и вернулась
-            var bump: Float = 0
-            if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            col.w = 0.75 + 0.25 * bump
-            circle(tx, ty, 2.4 + 1.3 * bump, col)
+            circle(tx, ty, max(0.4, nr * (1 - reload)), col)
         }
     }
 

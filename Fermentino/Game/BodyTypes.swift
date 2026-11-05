@@ -10,6 +10,7 @@ enum BodyType {
     static let atom: UInt32 = 1
     static let anchor: UInt32 = 2
     static let dust: UInt32 = 3     // пыль: гравитация и контакт как у всех, но не инертон
+    static let tip: UInt32 = 4      // ядрышко на конце щупа: часть корабля, всегда прибито к концу щупа
 }
 
 enum BodyFlag {

@@ -75,6 +75,8 @@ final class Game {
 
     // ---- щупы хоста (захват по валентности)
     private(set) var held: [[Int]] = []      // слот хоста → индексы зёрен комка на этом щупе (пусто = свободен)
+    private(set) var nuclei: [Int] = []      // слот хоста → индекс ядрышка на конце щупа (постоянное тело)
+    private var bullets: [Int] = []          // выстреленные копии ядрышек; старые переиспользуются, чтобы тел не становилось всё больше
     private var holdOrder: [Int] = []        // слоты в порядке захвата, последний — самый свежий
     private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
     private(set) var probeReload: [Float] = [] // с до конца перезарядки щупа после выстрела (0 = готов)
@@ -239,10 +241,14 @@ final class Game {
         // флаг «на щупе» для ядра сил (место покоя тело хранит само: ang и angVel)
         if probesOn {
             for o in 0..<count { bodies[o].flags &= ~BodyFlag.group }
+            for (s, n) in nuclei.enumerated() {
+                bodies[n].flags |= BodyFlag.held                 // ядрышко всегда прибито к концу своего щупа
+                bodies[n].kAngle = Float(s)
+            }
             for (s, clump) in held.enumerated() {
-                for (k, j) in clump.enumerated() {
-                    bodies[j].flags |= k == 0 ? BodyFlag.held : BodyFlag.member   // первое зерно — ядро, прибито к щупу
-                    bodies[j].kAngle = Float(s)                                    // номер щупа
+                for j in clump {
+                    bodies[j].flags |= BodyFlag.member           // зерно комка: держится притяжением щупа и контактом
+                    bodies[j].kAngle = Float(s)                  // номер щупа
                 }
             }
         }
@@ -368,8 +374,25 @@ final class Game {
         }
         held = []
         holdOrder = []
+        nuclei = []
+        bullets = []
         if let pr = round.probes {
             held = Array(repeating: [], count: cores[0].slots.count)
+            // ядрышки на концах щупов: постоянные тела, часть корабля
+            for sl in 0..<cores[0].slots.count {
+                let a = bodies[0].ang + cores[0].slots[sl]
+                var b = Body()
+                b.type = BodyType.tip
+                b.pos = bodies[0].pos + SIMD2<Float>(cos(a), sin(a)) * pr.length
+                b.r = pr.tipR
+                b.m = pr.tipMass
+                b.ang = cores[0].slots[sl]          // место покоя: угол щупа…
+                b.angVel = pr.length                // …и его длина
+                b.kAngle = Float(sl)
+                b.flags = BodyFlag.held
+                nuclei.append(count)
+                bodies[count] = b; count += 1
+            }
             probePulse = Array(repeating: 0, count: cores[0].slots.count)
             probeReload = Array(repeating: 0, count: cores[0].slots.count)
             probeOff = Array(repeating: false, count: cores[0].slots.count)
@@ -597,12 +620,11 @@ final class Game {
 
     private func updateHolds() {
         guard let pr = round.probes, !bodies[0].isCaptured else { return }
-        // зерно комка, отнесённое далеко от конца щупа, отваливается; без ядра комок распадается
+        // зерно комка, отнесённое далеко от конца щупа, отваливается
         for s in 0..<held.count where !held[s].isEmpty {
             let tip = probeTip(s, length: pr.length)
-            if bodies[held[s][0]].isCaptured { releaseProbe(s); continue }
-            var kept = [held[s][0]]
-            for j in held[s].dropFirst() {
+            var kept: [Int] = []
+            for j in held[s] {
                 let ddx = dx(bodies[j].pos.x, tip.x), ddy = dy(bodies[j].pos.y, tip.y)
                 if ddx * ddx + ddy * ddy > pr.dropR * pr.dropR || bodies[j].isCaptured {
                     bodies[j].flags &= ~BodyFlag.group
@@ -611,48 +633,32 @@ final class Game {
                 }
             }
             held[s] = kept
+            if kept.isEmpty { holdOrder.removeAll { $0 == s } }
         }
         // перезарядка щупов после выстрела
         for s in 0..<probeReload.count where probeReload[s] > 0 { probeReload[s] = max(0, probeReload[s] - K.DT) }
 
+        // рост: зерно цепляется, только КОСНУВШИСЬ ядрышка на конце щупа или уже прицепившегося зерна
         let usedByBonds = Set(cores[0].bonds.values)
         var taken = heldSet
-        for s in 0..<held.count where !probeOff[s] && !usedByBonds.contains(s) {
-            // ядро: свободный щуп берёт зерно, которое КОСНУЛОСЬ его конца, и ставит его ровно в эту точку
-            if held[s].isEmpty {
-                if probeReload[s] > 0 { continue }
-                let tip = probeTip(s, length: pr.length)
-                var seed = -1
-                var bestD = Float.infinity
-                for o in cores.count..<count where bodies[o].type == BodyType.dust {
-                    if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) { continue }
-                    let ddx = dx(bodies[o].pos.x, tip.x), ddy = dy(bodies[o].pos.y, tip.y)
-                    let reach = bodies[o].r + pr.touch
-                    let d = ddx * ddx + ddy * ddy
-                    if d <= reach * reach && d < bestD { bestD = d; seed = o }
-                }
-                if seed < 0 { continue }
-                bodies[seed].angVel = pr.length                // место покоя ядра — сам конец щупа
-                bodies[seed].ang = cores[0].slots[s]
-                bodies[seed].flags |= BodyFlag.held
-                bodies[seed].kAngle = Float(s)
-                taken.insert(seed)
-                held[s] = [seed]
-                holdOrder.append(s)
-                continue
-            }
-            // рост: к комку цепляется только то зерно, которое его КАСАЕТСЯ, пока зёрен меньше maxClump
+        for s in 0..<held.count where !probeOff[s] && !usedByBonds.contains(s) && probeReload[s] <= 0 {
             if held[s].count >= pr.maxClump { continue }
+            let n = nuclei[s]
             for o in cores.count..<count where bodies[o].type == BodyType.dust {
                 if held[s].count >= pr.maxClump { break }
                 if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) { continue }
-                var touches = false
-                for j in held[s] {
-                    let ddx = dx(bodies[o].pos.x, bodies[j].pos.x), ddy = dy(bodies[o].pos.y, bodies[j].pos.y)
-                    let reach = (bodies[o].r + bodies[j].r) * pr.linkGap
-                    if ddx * ddx + ddy * ddy <= reach * reach { touches = true; break }
+                let ndx = dx(bodies[o].pos.x, bodies[n].pos.x), ndy = dy(bodies[o].pos.y, bodies[n].pos.y)
+                let nReach = (bodies[o].r + bodies[n].r) * pr.linkGap
+                var touches = ndx * ndx + ndy * ndy <= nReach * nReach
+                if !touches {
+                    for j in held[s] {
+                        let ddx = dx(bodies[o].pos.x, bodies[j].pos.x), ddy = dy(bodies[o].pos.y, bodies[j].pos.y)
+                        let reach = (bodies[o].r + bodies[j].r) * pr.linkGap
+                        if ddx * ddx + ddy * ddy <= reach * reach { touches = true; break }
+                    }
                 }
                 if !touches { continue }
+                if held[s].isEmpty { holdOrder.append(s) }
                 bodies[o].flags |= BodyFlag.member
                 bodies[o].kAngle = Float(s)
                 taken.insert(o)
@@ -669,24 +675,38 @@ final class Game {
         if probeOff[s] && !held[s].isEmpty { releaseProbe(s) }
     }
 
-    /// Центр масс комка на щупе s относительно хоста.
-    private func clumpOffset(_ s: Int) -> SIMD2<Float> {
-        var sum = SIMD2<Float>.zero
-        var m: Float = 0
-        for j in held[s] {
-            sum += SIMD2<Float>(dx(bodies[j].pos.x, bodies[0].pos.x), dy(bodies[j].pos.y, bodies[0].pos.y)) * bodies[j].m
-            m += bodies[j].m
+    /// Выстреленная копия ядрышка: обычное зерно пыли в точке конца щупа. Не больше 120 штук в мире —
+    /// дальше самая старая переиспользуется.
+    private func spawnBullet(from n: Int) -> Int? {
+        var idx = -1
+        if bullets.count >= 120 {
+            idx = bullets.removeFirst()
+            for s in 0..<held.count { held[s].removeAll { $0 == idx } }
+        } else {
+            guard count < sim.capacity else { return nil }
+            idx = count
+            count += 1
         }
-        if m <= 0 { return .zero }
-        return sum / m
+        var b = Body()
+        b.type = BodyType.dust
+        b.pos = bodies[n].pos
+        b.vel = bodies[n].vel
+        b.r = bodies[n].r
+        b.m = bodies[n].m
+        bodies[idx] = b
+        bullets.append(idx)
+        return idx
     }
 
-    /// Швырнуть весь комок со щупа s в направлении dir: все зёрна получают одну скорость,
-    /// корабль — равный противоположный импульс (скорость выброса падает с массой комка).
+    /// Выстрел со щупа s в направлении dir: улетает ядрышко (его копия) вместе со всем, что на нём наросло;
+    /// на конце щупа за время перезарядки нарастает новое. Все тела получают одну добавку скорости,
+    /// корабль — равный противоположный импульс.
     private func throwClump(_ s: Int, dir: SIMD2<Float>, strength: Float) {
-        let grains = held[s]
+        guard let pr = round.probes, probeReload[s] <= 0 else { return }
+        var grains = held[s]
         releaseProbe(s)
-        probeReload[s] = round.probes?.reload ?? 0
+        probeReload[s] = pr.reload
+        if let bullet = spawnBullet(from: nuclei[s]) { grains.append(bullet) }
         var mass: Float = 0
         for j in grains { mass += bodies[j].m }
         if mass <= 0 { return }
@@ -700,26 +720,25 @@ final class Game {
         say("flight.moving")
     }
 
-    /// Вариант А: швырнуть комок со щупа s вдоль щупа наружу.
+    /// Вариант А: выстрел со щупа s вдоль щупа наружу. Пустой щуп стреляет одним ядрышком.
     func throwProbe(_ s: Int, strength: Float = 1) {
-        guard probesOn, s >= 0, s < held.count, !winning else { return }
+        guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
         if probeOff[s] { return }                          // выключенный щуп не реагирует
-        if held[s].isEmpty { probePulse[s] = 1; return }   // пустой щуп: только дёрнуться
-        let off = clumpOffset(s)
+        let off = probeTip(s, length: pr.length) - bodies[0].pos
         let len = simd_length(off)
         if len < 0.001 { return }
         throwClump(s, dir: off / len, strength: strength)
     }
 
-    /// Вариант Б: свайп — летит комок, лучше всего лежащий по направлению свайпа, в сторону свайпа.
+    /// Вариант Б: свайп — стреляет щуп, лучше всего лежащий по направлению свайпа, в сторону свайпа.
     func throwInDirection(_ dxIn: Float, _ dyIn: Float, strength: Float) {
-        guard probesOn, !winning else { return }
+        guard probesOn, !winning, let pr = round.probes else { return }
         let len = hypot(dxIn, dyIn); if len == 0 { return }
         let dir = SIMD2<Float>(dxIn / len, dyIn / len)
         var bestSlot = -1
         var bestProj = -Float.infinity
-        for s in 0..<held.count where !held[s].isEmpty {
-            let off = clumpOffset(s)
+        for s in 0..<held.count where !probeOff[s] && probeReload[s] <= 0 {
+            let off = probeTip(s, length: pr.length) - bodies[0].pos
             let l = simd_length(off)
             if l < 0.001 { continue }
             let proj = simd_dot(off / l, dir)
@@ -729,7 +748,7 @@ final class Game {
         throwClump(bestSlot, dir: dir, strength: strength)
     }
 
-    /// «Отклеить последнее»: швырнуть самый свежий комок, корабль получает отдачу.
+    /// «Отклеить последнее»: выстрелить самым свежим комком, корабль получает отдачу.
     func undoLast() {
         guard let s = holdOrder.last else { return }
         throwProbe(s)

@@ -20,7 +20,7 @@ typedef struct {
     simd_float2 vel;
     float m;
     float r;
-    unsigned int type;     // 0 core, 1 atom, 2 anchor, 3 dust
+    unsigned int type;     // 0 core, 1 atom, 2 anchor, 3 dust, 4 tip (ядрышко на конце щупа)
     unsigned int flags;    // 1 captured, 4 mine, 8 molCore, 16 held (ядро комка, прибито к концу щупа), 32 member (зерно комка)
     float ang;             // ядро: ориентация (рад). Тело на щупе: угол покоя относительно ориентации хоста
     float angVel;          // ядро: угловая скорость. Тело на щупе: длина покоя (расстояние до центра хоста)
