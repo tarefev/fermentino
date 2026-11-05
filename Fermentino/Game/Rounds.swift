@@ -89,7 +89,7 @@ struct ProbeDef {
     var maxClump = 20               // комок на щупе растёт до стольких зёрен, потом закрыт: к нему ничего не липнет
     var linkGap: Float = 1.08       // зерно цепляется к комку только касанием: расстояние ≤ (rA + rB)·это
     var dropR: Float = 18           // зерно комка, отнесённое дальше этого от конца щупа, отваливается
-    var reload: Float = 0.3         // с после выстрела, пока щуп ничего не ловит
+    var reload: Float = 0.7         // с после выстрела: ядрышко нарастает заново, щуп пока ничего не ловит и не стреляет
     var heldGravity: Float = 1.0 / 3.0   // тело на щупе притягивает втрое слабее
     var hostGravity: Float = 0.03   // корабль почти не притягивает (как тело массы 150): к борту ничего не стекается…
     var probeMass: Float = 1600     // …зато конец каждого свободного щупа притягивает как тело этой массы
@@ -128,6 +128,7 @@ struct RoundDef {
     var ejectSpeed: Float? = nil    // скорость выброса в туре (nil = K.EJECT_SPEED); отдача ∝ ей
     var probes: ProbeDef? = nil     // захват по щупам вместо «своих по близости»
     var maxSpeed: Float? = nil      // потолок скорости в туре (nil = K.MAX_SPEED)
+    var substeps: Int? = nil        // подшагов физики на кадр (nil = K.SUBSTEPS); меньше — дешевле для телефона
 
     /// Индекс пар "a-b" (по алфавиту) → параметры связи.
     func interactIndex() -> [String: InteractionDef] {
@@ -169,7 +170,8 @@ enum Rounds {
             dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 40, minHostDist: 90, avoidZone: true,
                           explode: ExplodeDef(max: 14, r: 35, speed: 260, burst: 3, rate: 0.5, rateRef: 12)),  // масса зерна ~150; ком ≥14 соседей не взрывается, а осыпается
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            probes: ProbeDef()              // пять щупов хоста, по лучам звезды
+            probes: ProbeDef(),             // пять щупов хоста, по лучам звезды
+            substeps: 3                     // 600 зёрен: три подшага устойчивы и на 40% дешевле пяти
         ),
         RoundDef(
             id: "star", win: .star,

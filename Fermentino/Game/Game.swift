@@ -911,9 +911,10 @@ final class Game {
             zone.m = min(K.BH_MAX, K.BH_MAX * zone.bhT / K.BH_RAMP)
         }
         syncBondsToGPU()
-        let h = dt * K.TIME_SCALE / Float(K.SUBSTEPS)
+        let substeps = round.substeps ?? K.SUBSTEPS
+        let h = dt * K.TIME_SCALE / Float(substeps)
         let gpuT0 = CACurrentMediaTime()
-        sim.run(params: makeParams(hSub: h), substeps: K.SUBSTEPS)
+        sim.run(params: makeParams(hSub: h), substeps: substeps)
         statsGpuMs += (CACurrentMediaTime() - gpuT0) * 1000
 
         for o in 0..<count where bodies[o].type != BodyType.anchor {
