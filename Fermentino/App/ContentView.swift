@@ -248,51 +248,20 @@ private struct MoleculeIcon: View {
     }
 }
 
-// MARK: - Фигура щупа (та же, что у конца щупа в игре)
-
-private struct ProbeShapeIcon: View {
-    let index: Int
-    let color: Color
-
-    var body: some View {
-        Canvas { ctx, size in
-            let c = CGPoint(x: size.width / 2, y: size.height / 2)
-            let r = min(size.width, size.height) / 2
-            switch index % 5 {
-            case 0:
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * 0.8, y: c.y - r * 0.8, width: r * 1.6, height: r * 1.6)), with: .color(color))
-            case 1:
-                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r * 0.72, y: c.y - r * 0.72, width: r * 1.44, height: r * 1.44)), with: .color(color), lineWidth: r * 0.32)
-            case 2:
-                var p = Path()
-                p.move(to: CGPoint(x: c.x, y: c.y - r * 0.9))
-                p.addLine(to: CGPoint(x: c.x + r * 0.9, y: c.y + r * 0.66))
-                p.addLine(to: CGPoint(x: c.x - r * 0.9, y: c.y + r * 0.66))
-                p.closeSubpath()
-                ctx.fill(p, with: .color(color))
-            case 3:
-                var p = Path()
-                p.move(to: CGPoint(x: c.x, y: c.y - r * 0.95))
-                p.addLine(to: CGPoint(x: c.x + r * 0.95, y: c.y))
-                p.addLine(to: CGPoint(x: c.x, y: c.y + r * 0.95))
-                p.addLine(to: CGPoint(x: c.x - r * 0.95, y: c.y))
-                p.closeSubpath()
-                ctx.fill(p, with: .color(color))
-            default:
-                let arm = r * 0.9, th = r * 0.3
-                ctx.fill(Path(CGRect(x: c.x - arm, y: c.y - th, width: arm * 2, height: th * 2)), with: .color(color))
-                ctx.fill(Path(CGRect(x: c.x - th, y: c.y - arm, width: th * 2, height: arm * 2)), with: .color(color))
-            }
-        }
-    }
-}
-
 // MARK: - Управление щупами (тест двух вариантов: А — кнопки, Б — свайп)
 
 private struct ProbeControls: View {
     let hud: HUDModel
     let session: GameSession
 
+    // пять оттенков красного от светлого к тёмному — те же, что у щупов в игре
+    private let probeColors: [Color] = [
+        Color(red: 1, green: 0xe0 / 255, blue: 0xd6 / 255),
+        Color(red: 1, green: 0xab / 255, blue: 0x99 / 255),
+        Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255),
+        Color(red: 0xd4 / 255, green: 0x3b / 255, blue: 0x3b / 255),
+        Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
+    ]
     private let buttonSize: CGFloat = 54
 
     var body: some View {
@@ -320,12 +289,11 @@ private struct ProbeControls: View {
                         Button {
                             session.throwProbe(s)
                         } label: {
-                            // один цвет на все щупы; какой щуп — по фигуре. Занятый — светлая заливка, пустой — тёмная
-                            ProbeShapeIcon(index: s, color: filled ? Color(red: 0x0a / 255, green: 0x0e / 255, blue: 0x1a / 255) : hudText.opacity(0.5))
-                                .frame(width: 26, height: 26)
+                            // оттенок красного = щуп: занятый — заливка, пустой — только контур
+                            Circle()
+                                .fill(probeColors[s % probeColors.count].opacity(filled ? 1 : 0.12))
+                                .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.9), lineWidth: 2))
                                 .frame(width: buttonSize, height: buttonSize)
-                                .background((filled ? hudText.opacity(0.92) : Color.black.opacity(0.35)), in: Circle())
-                                .overlay(Circle().stroke(hudText.opacity(filled ? 0.95 : 0.4), lineWidth: 2))
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                         }
