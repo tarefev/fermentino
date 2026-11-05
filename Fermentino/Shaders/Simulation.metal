@@ -211,10 +211,15 @@ kernel void integrate(device Body *bodies           [[buffer(0)]],
         if (s2 > cap2) o.vel *= p.MAX_SPEED / sqrt(s2);
         o.pos += o.vel * h;
         if (o.type == BODY_CORE) {
-            o.angVel += p.K_ANGLE_TORQUE * o.tq * h;
-            o.angVel *= max(0.0, 1.0 - p.ANG_DAMP * h);
-            o.ang += o.angVel * h;
-            if (i == 0u && p.holdOn != 0u) o.ang += p.hostSpin * h;   // медленное вращение креста щупов
+            if (i == 0u && p.holdOn != 0u) {
+                // хост со щупами вращается только с заданной скоростью: удары и рывки на угол не влияют
+                o.angVel = 0.0;
+                o.ang += p.hostSpin * h;
+            } else {
+                o.angVel += p.K_ANGLE_TORQUE * o.tq * h;
+                o.angVel *= max(0.0, 1.0 - p.ANG_DAMP * h);
+                o.ang += o.angVel * h;
+            }
         }
     }
     bodies[i] = o;
