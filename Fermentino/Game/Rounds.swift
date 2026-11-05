@@ -146,7 +146,7 @@ enum Rounds {
                 "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
-                                     explode: ExplodeDef(max: 8, r: 35, speed: 8000, burst: 8, rate: 2, rateRef: 16)),   // ком от 9 инертонов кипит; разлёт вдвое сильнее
+                                     explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
             ],
             interactions: [],
             intro: [],
@@ -160,8 +160,7 @@ enum Rounds {
             dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 240, minHostDist: 400, avoidZone: true,
                           explode: ExplodeDef(max: 14, r: 35, speed: 1000, burst: 4, rate: 0.5, rateRef: 12)),  // ком ≥14 соседей взрывается редко и мягко
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            probes: ProbeDef(),             // пять щупов хоста, по лучам звезды
-            maxSpeed: 8000                  // чтобы взрыв инертонов мог разбрасывать вдвое быстрее базового потолка
+            probes: ProbeDef()              // пять щупов хоста, по лучам звезды
         ),
         RoundDef(
             id: "star", win: .star,

@@ -116,8 +116,10 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         if (r < contact) {
             const float mu = mm / (A.m + B.m);
             fnet -= p.K_REP * mu * (contact - r);
-            // хост при захвате по щупам отбивает упруго: масса не налипает на шар
-            const bool hostElastic = p.holdOn != 0u && (i == 0u || j == 0u);
+            // хост при захвате по щупам отбивает ИНЕРТОНЫ упруго (не налипают на шар);
+            // пыль об него вязнет, как обо всё остальное, иначе её вечно швыряет отскоком
+            const bool hostElastic = p.holdOn != 0u
+                && ((i == 0u && B.type == BODY_ATOM) || (j == 0u && A.type == BODY_ATOM));
             if (!aAnchor && B.type != BODY_ANCHOR && !hostElastic) {
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
                 float stick = 1.0;
