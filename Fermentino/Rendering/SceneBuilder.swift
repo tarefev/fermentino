@@ -241,13 +241,15 @@ struct SceneBuilder {
             let tx = hp.x + game.dx(bodies[n].pos.x, host.pos.x) * scale
             let ty = hp.y + game.dy(bodies[n].pos.y, host.pos.y) * scale
             let nr = bodies[n].r * scale
-            // долгое нажатие на кнопку: к ядрышку стягивается кольцо; сомкнулось — щуп переключился
-            // (и на выключение, и на включение обратно)
+            // долгое нажатие на кнопку. Выключение: кольцо стягивается к ядрышку и ярчает; сомкнулось — щуп
+            // выключен. Включение — то же в обратную сторону: кольцо расходится от ядрышка и тускнеет.
             let hold = game.probeHoldProgress(s)
             if hold > 0 {
+                let isOff = s < game.probeOff.count && game.probeOff[s]
+                let closing = isOff ? 1 - hold : hold           // 1 — кольцо у самого ядрышка
                 var ring = col
-                ring.w = 0.35 + 0.6 * hold
-                let rr = nr + 1.5 + 9 * (1 - hold)
+                ring.w = 0.35 + 0.6 * closing
+                let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
             }
             // выключенный щуп: ядрышко едва заметным пустым колечком; пока его включают, ядрышко нарастает внутри
