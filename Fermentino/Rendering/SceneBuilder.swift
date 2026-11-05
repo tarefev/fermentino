@@ -169,7 +169,10 @@ struct SceneBuilder {
         let zp = screen(zone.x, zone.y, cam: cam)
         let zr = zone.r * scale
         let pulse = 0.5 + 0.5 * sin(game.gfxSpin * 0.4)
-        circle(zp.x, zp.y, zr, rgba(175, 115, 255, 0.16 + 0.08 * pulse), soft: 1)
+        // ярче и насыщеннее прежнего: на фактурном фоне бледное пятно терялось
+        circle(zp.x, zp.y, zr * 1.2, rgba(190, 105, 255, 0.40 + 0.12 * pulse), soft: 1)      // свечение
+        circle(zp.x, zp.y, zr * 0.6, rgba(232, 190, 255, 0.34 + 0.10 * pulse), soft: 1)      // светлая сердцевина
+        circle(zp.x, zp.y, zr, rgba(220, 165, 255, 0.50 + 0.25 * pulse), inner: zr - 2)      // чёткая кромка
         for i in 0..<56 {
             let fi = Float(i)
             let sp = 0.25 + Float(i % 7) * 0.05, ph = fi * 1.7
@@ -177,8 +180,8 @@ struct SceneBuilder {
             let ang = fi * 2.39996 + game.gfxSpin * sp * dir
             let rad = zr * (0.22 + 0.98 * (0.5 + 0.5 * sin(game.gfxSpin * (0.4 + Float(i % 5) * 0.16) + ph)))
             let tw = 0.5 + 0.5 * sin(game.gfxSpin * 1.3 + ph)
-            let pr: Float = 1.1 + (i % 3 == 0 ? 1.8 : 0.6)
-            circle(zp.x + cos(ang) * rad, zp.y + sin(ang) * rad, pr * scale, rgba(205, 170, 255, 0.06 + 0.20 * tw))
+            let pr: Float = 1.4 + (i % 3 == 0 ? 2.0 : 0.8)
+            circle(zp.x + cos(ang) * rad, zp.y + sin(ang) * rad, pr * scale, rgba(225, 190, 255, 0.25 + 0.50 * tw))
         }
         scene.zoneLabel = CGPoint(x: CGFloat(zp.x), y: CGFloat(zp.y - zr - 12))
 
@@ -321,10 +324,12 @@ struct SceneBuilder {
             let col = bodies[o].isMine ? K.COL_MINE : rgba(138, 160, 189, 0.45)
             rect(mmc + game.dx(bodies[o].pos.x, cam.x) * sc - 0.7, mmm + game.dy(bodies[o].pos.y, cam.y) * sc - 0.7, 1.4, 1.4, col)
         }
-        for c in 0..<game.cores.count {
+        for c in 0..<game.cores.count where !game.cores[c].main {
             let px = mmc + game.dx(bodies[c].pos.x, cam.x) * sc, py = mmm + game.dy(bodies[c].pos.y, cam.y) * sc
-            circle(px, py, game.cores[c].main ? 3 : 2.2, game.cores[c].col)
+            circle(px, py, 2.2, game.cores[c].col)
         }
-        circle(mmc, mmm, 4, SIMD4<Float>(1, 1, 1, 1), inner: 3)
+        // корабль в центре: красный кружок без обводки, внутри золотая звёздочка
+        circle(mmc, mmm, 5, game.cores[0].col)
+        star(mmc, mmm, 3.6, inner: 1.5, rgb("#ffd60a"))
     }
 }
