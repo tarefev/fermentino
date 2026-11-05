@@ -158,7 +158,7 @@ enum Rounds {
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
             dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 240, minHostDist: 400, avoidZone: true,
-                          explode: ExplodeDef(max: 14, r: 35, speed: 2200, burst: 4, rate: 0.5, rateRef: 12)),  // масса зерна ~400; ком ≥14 соседей взрывается редко и вдвое слабее
+                          explode: ExplodeDef(max: 14, r: 35, speed: 1000, burst: 4, rate: 0.5, rateRef: 12)),  // ком ≥14 соседей взрывается редко и мягко
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
             probes: ProbeDef(),             // пять щупов хоста, по лучам звезды
             maxSpeed: 8000                  // чтобы взрыв инертонов мог разбрасывать вдвое быстрее базового потолка
