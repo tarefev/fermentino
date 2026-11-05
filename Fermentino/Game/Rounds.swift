@@ -156,8 +156,8 @@ enum Rounds {
             spawner: SpawnerDef(interval: 1.5, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
-            dust: DustDef(n: 600, rMin: 1, rMax: 1, density: 100, minHostDist: 400, avoidZone: true,
-                          explode: ExplodeDef(max: 9, r: 35, speed: 4000, burst: 4, rate: 0.95, rateRef: 12)),  // тяжёлые, редкие, вдали от хоста; ком ≥9 соседей взрывается, нечасто
+            dust: DustDef(n: 1200, rMin: 1.3, rMax: 1.3, density: 240, minHostDist: 400, avoidZone: true,
+                          explode: ExplodeDef(max: 14, r: 35, speed: 2200, burst: 4, rate: 0.5, rateRef: 12)),  // масса зерна ~400; ком ≥14 соседей взрывается редко и вдвое слабее
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
             probes: ProbeDef()              // пять щупов хоста, по лучам звезды
         ),
