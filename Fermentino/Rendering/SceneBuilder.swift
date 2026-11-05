@@ -249,6 +249,7 @@ struct SceneBuilder {
                 let closing = isOff ? 1 - hold : hold           // 1 — кольцо у самого ядрышка
                 var ring = col
                 ring.w = 0.35 + 0.6 * closing
+                if isOff { ring.w = 0.95 * (1 - hold) }         // расходясь, кольцо гаснет в ноль — без хлопка в конце
                 let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
             }
