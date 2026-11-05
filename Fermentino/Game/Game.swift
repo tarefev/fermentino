@@ -77,6 +77,7 @@ final class Game {
     private(set) var holds: [Int] = []       // слот хоста → индекс тела или -1
     private var holdOrder: [Int] = []        // слоты в порядке захвата, последний — самый свежий
     private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
+    private(set) var probeReload: [Float] = [] // с до конца перезарядки щупа после выстрела (0 = готов)
     var probesOn: Bool { round.probes != nil }
     var controlMode: ControlMode = .buttons
 
@@ -355,6 +356,7 @@ final class Game {
         if let pr = round.probes {
             holds = Array(repeating: -1, count: cores[0].slots.count)
             probePulse = Array(repeating: 0, count: cores[0].slots.count)
+            probeReload = Array(repeating: 0, count: cores[0].slots.count)
             bodies[0].kAngle = pr.kAngle
         }
 
@@ -560,19 +562,6 @@ final class Game {
         holdOrder.removeAll { $0 == s }
     }
 
-    /// Ближайший по углу свободный щуп к мировому направлению dir.
-    private func nearestFreeProbe(dir: Float) -> Int? {
-        let usedByBonds = Set(cores[0].bonds.values)
-        var best: Int? = nil
-        var bestErr = Float.infinity
-        for s in 0..<holds.count where holds[s] < 0 && !usedByBonds.contains(s) {
-            var e = dir - (bodies[0].ang + cores[0].slots[s])
-            e = atan2(sin(e), cos(e))
-            if abs(e) < bestErr { bestErr = abs(e); best = s }
-        }
-        return best
-    }
-
     private func updateHolds() {
         guard let pr = round.probes, !bodies[0].isCaptured else { return }
         let host = bodies[0]
@@ -583,16 +572,25 @@ final class Game {
             let L = pr.length
             if hypot(ddx, ddy) > L * pr.breakStretch || bodies[j].isCaptured { releaseProbe(s) }
         }
-        // защёлка: свободный инертон на длине щупа и есть свободный щуп
-        if !holds.contains(-1) { return }
-        for o in cores.count..<count where bodies[o].type == BodyType.atom {
-            if bodies[o].heat > 0 || bodies[o].isCaptured || holds.contains(o) { continue }
-            let ddx = dx(bodies[o].pos.x, host.pos.x), ddy = dy(bodies[o].pos.y, host.pos.y)
-            let L = pr.length
-            if hypot(ddx, ddy) > L * 1.1 { continue }
-            guard let s = nearestFreeProbe(dir: atan2(ddy, ddx)) else { break }
-            holds[s] = o
-            holdOrder.append(s)
+        // перезарядка щупов после выстрела
+        for s in 0..<probeReload.count where probeReload[s] > 0 { probeReload[s] = max(0, probeReload[s] - K.DT) }
+        // защёлка: щуп свободен и не перезаряжается, а центр шара подошёл вплотную к его концу
+        let usedByBonds = Set(cores[0].bonds.values)
+        for s in 0..<holds.count where holds[s] < 0 && probeReload[s] <= 0 && !usedByBonds.contains(s) {
+            let a = host.ang + cores[0].slots[s]
+            let tipX = host.pos.x + cos(a) * pr.length, tipY = host.pos.y + sin(a) * pr.length
+            var best = -1
+            var bestD = pr.captureR * pr.captureR
+            for o in cores.count..<count where bodies[o].type == BodyType.atom {
+                if bodies[o].heat > 0 || bodies[o].isCaptured || holds.contains(o) { continue }
+                let ddx = dx(bodies[o].pos.x, tipX), ddy = dy(bodies[o].pos.y, tipY)
+                let d = ddx * ddx + ddy * ddy
+                if d <= bestD { bestD = d; best = o }
+            }
+            if best >= 0 {
+                holds[s] = best
+                holdOrder.append(s)
+            }
         }
     }
 
@@ -602,6 +600,7 @@ final class Game {
         if holds[s] < 0 { probePulse[s] = 1; return }      // пустой щуп: только дёрнуться
         let j = holds[s]
         releaseProbe(s)
+        probeReload[s] = round.probes?.reload ?? 0
         computeBody()
         var ddx = dx(bodies[j].pos.x, bodies[0].pos.x), ddy = dy(bodies[j].pos.y, bodies[0].pos.y)
         var len = hypot(ddx, ddy); if len == 0 { len = 1 }
@@ -626,6 +625,7 @@ final class Game {
         if bestSlot < 0 { return }
         let j = holds[bestSlot]
         releaseProbe(bestSlot)
+        probeReload[bestSlot] = round.probes?.reload ?? 0
         computeBody()
         doEject(j, dxn, dyn, strength: strength)
     }

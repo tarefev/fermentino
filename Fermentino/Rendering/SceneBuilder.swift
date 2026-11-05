@@ -241,6 +241,15 @@ struct SceneBuilder {
             if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
             var r1 = host.r * scale + 12
             if let pr = game.round.probes { r1 = pr.length * scale }   // там же, где встанет центр пойманного тела
+            // перезарядка после выстрела: вместо точки тусклое кольцо, которое стягивается к точке
+            var reload: Float = 0
+            if s < game.probeReload.count, let pr = game.round.probes, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
+            if reload > 0 {
+                col.w = 0.45
+                let rr = 2.5 + 6 * reload
+                circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, rr, col, inner: rr - 1.2)
+                continue
+            }
             col.w = 0.6 + 0.3 * bump
             // рывок = шарик на месте чуть вырос и вернулся, без вылета наружу
             circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 1.3 * bump, col)
