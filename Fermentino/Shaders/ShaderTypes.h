@@ -21,7 +21,7 @@ typedef struct {
     float m;
     float r;
     unsigned int type;     // 0 core, 1 atom, 2 anchor, 3 dust
-    unsigned int flags;    // 1 captured, 4 mine, 8 molCore
+    unsigned int flags;    // 1 captured, 4 mine, 8 molCore, 16 held (на щупе)
     float ang;             // ориентация ядра (рад)
     float angVel;
     float tq;              // накопленный за подшаг «угловой момент» (сумма ошибок слотов)
@@ -62,7 +62,7 @@ typedef struct {
     unsigned int holdOn;   // 1 = захват по щупам: хост упруго отбивает всё, что не на щупе
     float hostSpin;        // постоянное вращение хоста со щупами, рад/с (плюс = по часовой на экране)
     float holdDamp;        // демпфер щупа (вдоль и поперёк): гасит дёрганье пойманного тела
-    float pad3;
+    float heldGravity;     // множитель гравитационной массы тела на щупе (1/3 = притягивает втрое слабее)
 } SimParams;
 
 // Рендер: инстанс фигуры в экранных точках.

@@ -16,6 +16,7 @@ enum BodyFlag {
     static let captured: UInt32 = 1
     static let mine: UInt32 = 4
     static let molCore: UInt32 = 8
+    static let held: UInt32 = 16     // тело держится на щупе хоста
 }
 
 extension Body {

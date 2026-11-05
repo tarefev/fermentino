@@ -231,6 +231,11 @@ final class Game {
             if s < holds.count && holds[s] >= 0 { v = Int32(holds[s]) }
             sim.holds[s] = v
         }
+        // флаг «на щупе» для ядра сил
+        if probesOn {
+            for o in 0..<count { bodies[o].flags &= ~BodyFlag.held }
+            for j in holds where j >= 0 { bodies[j].flags |= BodyFlag.held }
+        }
         for i in 0..<mc {
             for j in 0..<mc {
                 let idx = i * mc + j
@@ -738,6 +743,7 @@ final class Game {
             p.holdLen = pr.length
             p.hostSpin = pr.spin
             p.holdDamp = pr.damp
+            p.heldGravity = pr.heldGravity
         }
         return p
     }

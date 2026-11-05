@@ -15,6 +15,7 @@ using namespace metal;
 #define BODY_ANCHOR 2u
 #define BODY_DUST   3u   // физика как у инертона, в логике не участвует
 #define FLAG_CAPTURED 1u
+#define FLAG_HELD     16u
 
 inline float wrapDelta(float d, float halfSize, float full)
 {
@@ -103,7 +104,13 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             bGb = gx * gx + gy * gy <= p.bubbleR2;
         }
         const float gOn = (p.gravBubbleOn && (aGb || bGb)) ? 0.0 : 1.0;
-        float fnet = gOn * p.G * mm / (r2 + p.EPS2) * gravTaper(r, p);
+        // тело на щупе притягивает слабее: его гравитационная масса умножена на heldGravity (инерция прежняя)
+        float gA = A.m, gB = B.m;
+        if (p.holdOn != 0u) {
+            if ((A.flags & FLAG_HELD) != 0u) gA *= p.heldGravity;
+            if ((B.flags & FLAG_HELD) != 0u) gB *= p.heldGravity;
+        }
+        float fnet = gOn * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
 
         const float contact = A.r + B.r;
         if (r < contact) {
