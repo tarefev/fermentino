@@ -217,7 +217,7 @@ struct SceneBuilder {
         return scene
     }
 
-    /// Щупы хоста: занятый — линия до пойманного тела, само тело залито цветом щупа; свободный — короткий штырь.
+    /// Щупы хоста без линий: пойманное тело залито цветом щупа; у свободного — точка на месте конца щупа.
     /// Цвет щупа совпадает с цветом его кнопки внизу экрана.
     private mutating func buildProbes(cam: SIMD2<Float>) {
         if !game.probesOn { return }
@@ -231,17 +231,6 @@ struct SceneBuilder {
             if j >= 0 {
                 let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
                 let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
-                col.w = 0.9
-                // щуп идёт от края корабля до края шара (корабль не перекрывает); три линии рядом — толщина
-                let ddx = ax - hp.x, ddy = ay - hp.y
-                let dl = max(1, simd_length(SIMD2<Float>(ddx, ddy)))
-                let ux = ddx / dl, uy = ddy / dl
-                let sx = hp.x + ux * host.r * scale, sy = hp.y + uy * host.r * scale
-                let ex = ax - ux * bodies[j].r * scale, ey = ay - uy * bodies[j].r * scale
-                let nx = -uy * 0.7, ny = ux * 0.7
-                line(sx, sy, ex, ey, col)
-                line(sx + nx, sy + ny, ex + nx, ey + ny, col)
-                line(sx - nx, sy - ny, ex - nx, ey - ny, col)
                 col.w = 1
                 circle(ax, ay, bodies[j].r * scale, col)      // пойманный шар целиком в цвете своего щупа
                 continue
@@ -251,10 +240,9 @@ struct SceneBuilder {
             // рывок пустого щупа по нажатию кнопки: вытянулся и вернулся
             var bump: Float = 0
             if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            let r0 = host.r * scale + 2, r1 = host.r * scale + 12 + 12 * bump
+            let r1 = host.r * scale + 12 + 12 * bump
             col.w = 0.6 + 0.4 * bump
-            line(hp.x + cos(a) * r0, hp.y + sin(a) * r0, hp.x + cos(a) * r1, hp.y + sin(a) * r1, col)
-            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 2 * bump, col)
+            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 2 * bump, col)   // без полосок: только точка на конце
         }
     }
 
