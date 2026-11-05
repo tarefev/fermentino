@@ -64,8 +64,8 @@ enum K {
 
     // ---- Рендер (§6, §10)
     static let COL_BG = rgb("#05060a")
-    static let COL_STAR = rgb("#243049")
-    static let COL_STAR_BRIGHT = rgb("#3a4d74")
+    static let COL_STAR = rgb("#56709f")          // взвесь в жиже: ярче прототипа, чтобы было видно движение
+    static let COL_STAR_BRIGHT = rgb("#9db8e8")
     static let COL_ATOM = rgb("#8aa0bd")
     static let COL_MINE = rgb("#3a9bff")
     static let COL_ANCHOR = rgb("#7a6a5c")
