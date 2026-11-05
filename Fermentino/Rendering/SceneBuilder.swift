@@ -247,6 +247,14 @@ struct SceneBuilder {
                 circle(tx, ty, nr, col, inner: nr - 1)
                 continue
             }
+            // долгое нажатие на кнопку: к ядрышку стягивается кольцо; сомкнулось — щуп переключился
+            let hold = game.probeHoldProgress(s)
+            if hold > 0 {
+                var ring = col
+                ring.w = 0.35 + 0.6 * hold
+                let rr = nr + 1.5 + 9 * (1 - hold)
+                circle(tx, ty, rr, ring, inner: rr - 1.4)
+            }
             // после выстрела ядрышко улетело: новое нарастает на конце щупа за время перезарядки
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }

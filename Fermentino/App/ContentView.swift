@@ -263,6 +263,7 @@ private struct ProbeControls: View {
         Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
     ]
     private let buttonSize: CGFloat = 54
+    @State private var pressed: Set<Int> = []      // какие кнопки щупов сейчас под пальцем
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -289,14 +290,32 @@ private struct ProbeControls: View {
                         // оттенок красного = щуп: занятый — заливка, пустой — контур, выключенный — едва виден.
                         // Тап бросает, долгое нажатие выключает / включает щуп.
                         let off = s < hud.probeOff.count && hud.probeOff[s]
+                        let hold = s < hud.probeHold.count ? CGFloat(hud.probeHold[s]) : 0
                         Circle()
                             .fill(probeColors[s % probeColors.count].opacity(off ? 0 : (filled ? 1 : 0.12)))
                             .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(off ? 0.22 : 0.9), lineWidth: 2))
+                            // долгое нажатие: кольцо заполняется по кругу, кнопка чуть сжимается
+                            .overlay(
+                                Circle()
+                                    .trim(from: 0, to: hold)
+                                    .stroke(hudText, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                    .padding(-5)
+                            )
+                            .scaleEffect(1 - 0.1 * hold)
                             .frame(width: buttonSize, height: buttonSize)
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
-                            .onTapGesture { session.throwProbe(s) }
-                            .onLongPressGesture(minimumDuration: 0.4) { session.toggleProbe(s) }
+                            // касание и отпускание ловим сами: короткое — выстрел, удержание — выключить / включить щуп
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { _ in
+                                        if !pressed.contains(s) { pressed.insert(s); session.pressBegan(s) }
+                                    }
+                                    .onEnded { _ in
+                                        pressed.remove(s); session.pressEnded(s)
+                                    }
+                            )
                     }
                 } else {
                     Spacer()

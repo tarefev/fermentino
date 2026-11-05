@@ -49,6 +49,7 @@ final class HUDModel {
     var probesOn = false
     var probeFilled: [Bool] = []
     var probeOff: [Bool] = []            // щуп выключен долгим нажатием
+    var probeHold: [Float] = []          // 0…1: насколько дожато долгое нажатие на кнопку щупа
     var controlMode: ControlMode = .buttons
     var narration = ""
     var narrationOpacity: Double = 0

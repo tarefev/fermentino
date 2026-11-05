@@ -81,6 +81,14 @@ final class Game {
     private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
     private(set) var probeReload: [Float] = [] // с до конца перезарядки щупа после выстрела (0 = готов)
     private(set) var probeOff: [Bool] = []     // щуп выключен: ничего не ловит
+    private var probePress: [Float] = []       // с, сколько держат кнопку щупа; -1 = не нажата; .infinity = уже сработало
+    /// 0…1: насколько дожато долгое нажатие на кнопку щупа s (для анимации на кнопке и на щупе).
+    func probeHoldProgress(_ s: Int) -> Float {
+        guard let pr = round.probes, s < probePress.count else { return 0 }
+        let t = probePress[s]
+        if t < 0 || t == .infinity { return 0 }
+        return min(1, t / pr.holdTime)
+    }
     var probesOn: Bool { round.probes != nil }
     var controlMode: ControlMode = .buttons
 
@@ -396,6 +404,7 @@ final class Game {
             probePulse = Array(repeating: 0, count: cores[0].slots.count)
             probeReload = Array(repeating: 0, count: cores[0].slots.count)
             probeOff = Array(repeating: false, count: cores[0].slots.count)
+            probePress = Array(repeating: -1, count: cores[0].slots.count)
             bodies[0].kAngle = pr.kAngle
         }
 
@@ -663,6 +672,32 @@ final class Game {
                 bodies[o].kAngle = Float(s)
                 taken.insert(o)
                 held[s].append(o)
+            }
+        }
+    }
+
+    /// Кнопку щупа s нажали: начинаем отсчёт долгого нажатия.
+    func pressBegan(_ s: Int) {
+        guard probesOn, s >= 0, s < probePress.count else { return }
+        probePress[s] = 0
+    }
+
+    /// Кнопку щупа s отпустили: короткое нажатие — выстрел; долгое уже переключило щуп.
+    func pressEnded(_ s: Int) {
+        guard probesOn, s >= 0, s < probePress.count else { return }
+        let t = probePress[s]
+        probePress[s] = -1
+        if t >= 0 && t != .infinity { throwProbe(s) }
+    }
+
+    /// Раз в кадр: дожатое до конца нажатие переключает щуп.
+    private func advancePresses(_ dt: Float) {
+        guard let pr = round.probes else { return }
+        for s in 0..<probePress.count where probePress[s] >= 0 && probePress[s] != .infinity {
+            probePress[s] += dt
+            if probePress[s] >= pr.holdTime {
+                probePress[s] = .infinity
+                toggleProbe(s)
             }
         }
     }
@@ -1139,6 +1174,7 @@ final class Game {
             if winBannerT >= 3 { winBannerT = -1; hud.showWin = true }
         }
         gfxSpin += 0.05
+        advancePresses(rawElapsed)
         for s in 0..<probePulse.count where probePulse[s] > 0 { probePulse[s] = max(0, probePulse[s] - rawElapsed / 0.28) }
         advanceNarration()
 
@@ -1182,6 +1218,7 @@ final class Game {
         set(&h.probesOn, probesOn)
         set(&h.probeFilled, held.map { !$0.isEmpty })
         set(&h.probeOff, probeOff)
+        set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
         set(&h.showBonds, showBonds)
