@@ -191,7 +191,7 @@ struct SceneBuilder {
         for i in 0..<n where bodies[i].type == BodyType.anchor { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.dust { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.atom && !bodies[i].isMine { drawBody(i, cam: cam) }
-        for i in 0..<n where bodies[i].type == BodyType.atom && bodies[i].isMine && !game.holds.contains(i) { drawBody(i, cam: cam) }
+        for i in 0..<n where bodies[i].type == BodyType.atom && bodies[i].isMine { drawBody(i, cam: cam) }
 
         if game.showBonds {
             let col = rgba(180, 200, 255, 0.35)
@@ -231,14 +231,16 @@ struct SceneBuilder {
         let slots = game.cores[0].slots
         guard let pr = game.round.probes else { return }
         let tipR = pr.length * scale
-        for s in 0..<game.holds.count {
+        for s in 0..<game.held.count {
             guard s < slots.count else { continue }
             var col = K.PROBE_COLORS[s % K.PROBE_COLORS.count]
-            let j = game.holds[s]
-            if j >= 0 {
-                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
-                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
-                circle(ax, ay, bodies[j].r * scale, col)
+            if !game.held[s].isEmpty {
+                // комок на щупе: каждое зерно залито оттенком своего щупа
+                for j in game.held[s] {
+                    let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
+                    let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
+                    circle(ax, ay, bodies[j].r * scale + 0.4, col)
+                }
                 continue
             }
             let a = host.ang + slots[s]

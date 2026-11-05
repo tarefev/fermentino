@@ -22,8 +22,8 @@ typedef struct {
     float r;
     unsigned int type;     // 0 core, 1 atom, 2 anchor, 3 dust
     unsigned int flags;    // 1 captured, 4 mine, 8 molCore, 16 held (на щупе)
-    float ang;             // ориентация ядра (рад)
-    float angVel;
+    float ang;             // ядро: ориентация (рад). Тело на щупе: угол покоя относительно ориентации хоста
+    float angVel;          // ядро: угловая скорость. Тело на щупе: длина покоя (расстояние до центра хоста)
     float tq;              // накопленный за подшаг «угловой момент» (сумма ошибок слотов)
     unsigned int nbr;      // соседей в радиусе INSTAB_R (инертоны)
     float heat;            // вспышка выброса/взрыва, 1 → 0

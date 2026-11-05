@@ -80,10 +80,14 @@ struct DustDef {
 /// Щупы хоста: захват по валентности. Свободный щуп защёлкивает инертон на фиксированном расстоянии,
 /// занятые — хост упруго отбивает. Швырять можно только то, что на щупе.
 struct ProbeDef {
-    var k: Float = 300              // жёсткость щупа
+    var k: Float = 4000             // жёсткость щупа вдоль длины: масса вокруг не прижимает комок к кораблю
     var length: Float = 30          // длина щупа: от центра хоста до центра пойманного тела, мировые единицы
     var breakStretch: Float = 3     // срыв при растяжении > length·это
-    var captureR: Float = 12        // захват, только когда центр шара ближе этого к концу щупа
+    var captureR: Float = 12        // захват, только когда зерно комка ближе этого к концу щупа
+    var minClump = 5                // комок ловится, если в нём столько зёрен и больше
+    var maxClump = 16               // за раз щуп берёт не больше стольких зёрен (ближайшие к концу щупа)
+    var linkGap: Float = 1.3        // зёрна в одном комке, если расстояние ≤ (rA + rB)·это
+    var holdRadius: Float = 14      // зерно дальше этого от своего места на щупе отваливается
     var reload: Float = 0.3         // с после выстрела, пока щуп ничего не ловит
     var heldGravity: Float = 1.0 / 3.0   // тело на щупе притягивает втрое слабее
     var kAngle: Float = 40000       // жёсткость угла щупа: щупы не гнутся, держат свои углы против любой толпы
@@ -154,10 +158,10 @@ enum Rounds {
             winSub: "win.flight",
             narration: true,
             controls: RoundControls(hud: false, valence: false, mass: false, gravity: false, toggles: false, molecule: false),
-            spawner: SpawnerDef(interval: 1.5, distance: 450, radialSpeed: 80, tangentSpeed: 40, r: 6, startOnBoard: 0, firstDelay: 5),   // медленнее, реже: игрок успевает читать
+            spawner: nil,                   // инертонов нет: ловим комки пыли
             zoneDistance: 1200,
             viscosity: 0.15,                // базовая: ниже — орбиты дольше, но захват заметно позже (нужен поток снарядов)
-            dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 40, minHostDist: 400, avoidZone: true,
+            dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 40, minHostDist: 90, avoidZone: true,
                           explode: ExplodeDef(max: 14, r: 35, speed: 260, burst: 3, rate: 0.5, rateRef: 12)),  // масса зерна ~150; ком ≥14 соседей не взрывается, а осыпается
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
             probes: ProbeDef()              // пять щупов хоста, по лучам звезды

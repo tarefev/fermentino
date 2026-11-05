@@ -74,7 +74,7 @@ final class Game {
     private var spawnTimer: Float = 0
 
     // ---- щупы хоста (захват по валентности)
-    private(set) var holds: [Int] = []       // слот хоста → индекс тела или -1
+    private(set) var held: [[Int]] = []      // слот хоста → индексы зёрен комка на этом щупе (пусто = свободен)
     private var holdOrder: [Int] = []        // слоты в порядке захвата, последний — самый свежий
     private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
     private(set) var probeReload: [Float] = [] // с до конца перезарядки щупа после выстрела (0 = готов)
@@ -227,15 +227,10 @@ final class Game {
     /// Матрицы связей и слотов → буферы GPU.
     private func syncBondsToGPU() {
         let mc = Int(FERM_MAX_CORES), ms = Int(FERM_MAX_SLOTS)
-        for s in 0..<ms {
-            var v: Int32 = -1
-            if s < holds.count && holds[s] >= 0 { v = Int32(holds[s]) }
-            sim.holds[s] = v
-        }
-        // флаг «на щупе» для ядра сил
+        // флаг «на щупе» для ядра сил (место покоя тело хранит само: ang и angVel)
         if probesOn {
             for o in 0..<count { bodies[o].flags &= ~BodyFlag.held }
-            for j in holds where j >= 0 { bodies[j].flags |= BodyFlag.held }
+            for clump in held { for j in clump { bodies[j].flags |= BodyFlag.held } }
         }
         for i in 0..<mc {
             for j in 0..<mc {
@@ -357,10 +352,10 @@ final class Game {
             cores.append(info)
             count += 1
         }
-        holds = []
+        held = []
         holdOrder = []
         if let pr = round.probes {
-            holds = Array(repeating: -1, count: cores[0].slots.count)
+            held = Array(repeating: [], count: cores[0].slots.count)
             probePulse = Array(repeating: 0, count: cores[0].slots.count)
             probeReload = Array(repeating: 0, count: cores[0].slots.count)
             probeOff = Array(repeating: false, count: cores[0].slots.count)
@@ -562,91 +557,173 @@ final class Game {
         ejectQueue.removeAll(keepingCapacity: true)
     }
 
-    // MARK: - Щупы: захват по валентности, бросок только с щупа
+    // MARK: - Щупы: ловят комки пыли, бросок только с щупа
 
+    /// Отпустить всё, что держит щуп s, без броска.
     private func releaseProbe(_ s: Int) {
-        holds[s] = -1
+        for j in held[s] { bodies[j].flags &= ~BodyFlag.held }
+        held[s] = []
         holdOrder.removeAll { $0 == s }
+    }
+
+    private var heldSet: Set<Int> {
+        var set = Set<Int>()
+        for clump in held { set.formUnion(clump) }
+        return set
+    }
+
+    /// Комок вокруг зерна seed: зёрна пыли, связанные касанием (расстояние ≤ (rA + rB)·linkGap).
+    /// Обход в ширину от seed, не больше limit зёрен — первыми берутся ближайшие по цепочке.
+    /// Зерно сидит на борту корабля (налипло): такое не часть свободного комка и щупом не берётся.
+    private func onHull(_ o: Int) -> Bool {
+        let host = bodies[0]
+        let ddx = dx(bodies[o].pos.x, host.pos.x), ddy = dy(bodies[o].pos.y, host.pos.y)
+        let reach = host.r + bodies[o].r + 2.5
+        return ddx * ddx + ddy * ddy <= reach * reach
+    }
+
+    private func clump(from seed: Int, limit: Int, gap: Float, taken: Set<Int>) -> [Int] {
+        var result = [seed]
+        var inResult: Set<Int> = [seed]
+        var qi = 0
+        while qi < result.count && result.count < limit {
+            let b = result[qi]; qi += 1
+            let bp = bodies[b].pos, br = bodies[b].r
+            for o in cores.count..<count {
+                if result.count >= limit { break }
+                if bodies[o].type != BodyType.dust || inResult.contains(o) || taken.contains(o) { continue }
+                if bodies[o].heat > 0 || bodies[o].isCaptured || onHull(o) { continue }
+                let ddx = dx(bodies[o].pos.x, bp.x), ddy = dy(bodies[o].pos.y, bp.y)
+                let reach = (br + bodies[o].r) * gap
+                if ddx * ddx + ddy * ddy <= reach * reach {
+                    result.append(o); inResult.insert(o)
+                }
+            }
+        }
+        return result
     }
 
     private func updateHolds() {
         guard let pr = round.probes, !bodies[0].isCaptured else { return }
         let host = bodies[0]
-        // срыв при перерастяжении щупа
-        for s in 0..<holds.count where holds[s] >= 0 {
-            let j = holds[s]
-            let ddx = dx(bodies[j].pos.x, host.pos.x), ddy = dy(bodies[j].pos.y, host.pos.y)
-            let L = pr.length
-            if hypot(ddx, ddy) > L * pr.breakStretch || bodies[j].isCaptured { releaseProbe(s) }
+        // зерно, которое унесло далеко от своего места на щупе, отваливается; пустой комок освобождает щуп
+        for s in 0..<held.count where !held[s].isEmpty {
+            var kept: [Int] = []
+            for j in held[s] {
+                let a = host.ang + bodies[j].ang
+                let tx = host.pos.x + cos(a) * bodies[j].angVel, ty = host.pos.y + sin(a) * bodies[j].angVel
+                let ddx = dx(bodies[j].pos.x, tx), ddy = dy(bodies[j].pos.y, ty)
+                if ddx * ddx + ddy * ddy > pr.holdRadius * pr.holdRadius || bodies[j].isCaptured {
+                    bodies[j].flags &= ~BodyFlag.held
+                } else {
+                    kept.append(j)
+                }
+            }
+            held[s] = kept
+            if kept.isEmpty { holdOrder.removeAll { $0 == s } }
         }
         // перезарядка щупов после выстрела
         for s in 0..<probeReload.count where probeReload[s] > 0 { probeReload[s] = max(0, probeReload[s] - K.DT) }
-        // защёлка: щуп свободен и не перезаряжается, а центр шара подошёл вплотную к его концу
+        // захват: щуп свободен, включён и не перезаряжается, а у его конца оказался комок от minClump зёрен
         let usedByBonds = Set(cores[0].bonds.values)
-        for s in 0..<holds.count where holds[s] < 0 && probeReload[s] <= 0 && !probeOff[s] && !usedByBonds.contains(s) {
+        var taken = heldSet
+        for s in 0..<held.count where held[s].isEmpty && probeReload[s] <= 0 && !probeOff[s] && !usedByBonds.contains(s) {
             let a = host.ang + cores[0].slots[s]
             let tipX = host.pos.x + cos(a) * pr.length, tipY = host.pos.y + sin(a) * pr.length
-            var best = -1
+            // ближайшее к концу щупа свободное зерно в радиусе захвата
+            var seed = -1
             var bestD = pr.captureR * pr.captureR
-            for o in cores.count..<count where bodies[o].type == BodyType.atom {
-                if bodies[o].heat > 0 || bodies[o].isCaptured || holds.contains(o) { continue }
+            for o in cores.count..<count where bodies[o].type == BodyType.dust {
+                if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) || onHull(o) { continue }
                 let ddx = dx(bodies[o].pos.x, tipX), ddy = dy(bodies[o].pos.y, tipY)
                 let d = ddx * ddx + ddy * ddy
-                if d <= bestD { bestD = d; best = o }
+                if d <= bestD { bestD = d; seed = o }
             }
-            if best >= 0 {
-                holds[s] = best
-                holdOrder.append(s)
+            if seed < 0 { continue }
+            let grains = clump(from: seed, limit: pr.maxClump, gap: pr.linkGap, taken: taken)
+            if grains.count < pr.minClump { continue }
+            // каждое зерно запоминает своё место в системе хоста: длину и угол относительно его ориентации
+            for j in grains {
+                let rx = dx(bodies[j].pos.x, host.pos.x), ry = dy(bodies[j].pos.y, host.pos.y)
+                bodies[j].angVel = max(1, hypot(rx, ry))
+                bodies[j].ang = atan2(ry, rx) - host.ang
+                bodies[j].flags |= BodyFlag.held
+                taken.insert(j)
             }
+            held[s] = grains
+            holdOrder.append(s)
         }
     }
 
     /// Долгое нажатие на кнопку щупа: выключить / включить. Выключенный щуп ничего не ловит;
-    /// если на нём висел шар, он отпускается без броска.
+    /// если на нём висел комок, он отпускается без броска.
     func toggleProbe(_ s: Int) {
         guard probesOn, s >= 0, s < probeOff.count, !winning else { return }
         probeOff[s].toggle()
-        if probeOff[s] && holds[s] >= 0 { releaseProbe(s) }
+        if probeOff[s] && !held[s].isEmpty { releaseProbe(s) }
     }
 
-    /// Вариант А: швырнуть то, что на щупе s, вдоль щупа наружу; шар получает отдачу.
-    func throwProbe(_ s: Int, strength: Float = 1) {
-        guard probesOn, s >= 0, s < holds.count, !winning else { return }
-        if probeOff[s] { return }                          // выключенный щуп не реагирует
-        if holds[s] < 0 { probePulse[s] = 1; return }      // пустой щуп: только дёрнуться
-        let j = holds[s]
+    /// Центр масс комка на щупе s относительно хоста.
+    private func clumpOffset(_ s: Int) -> SIMD2<Float> {
+        var sum = SIMD2<Float>.zero
+        var m: Float = 0
+        for j in held[s] {
+            sum += SIMD2<Float>(dx(bodies[j].pos.x, bodies[0].pos.x), dy(bodies[j].pos.y, bodies[0].pos.y)) * bodies[j].m
+            m += bodies[j].m
+        }
+        if m <= 0 { return .zero }
+        return sum / m
+    }
+
+    /// Швырнуть весь комок со щупа s в направлении dir: все зёрна получают одну скорость,
+    /// корабль — равный противоположный импульс (скорость выброса падает с массой комка).
+    private func throwClump(_ s: Int, dir: SIMD2<Float>, strength: Float) {
+        let grains = held[s]
         releaseProbe(s)
         probeReload[s] = round.probes?.reload ?? 0
-        computeBody()
-        var ddx = dx(bodies[j].pos.x, bodies[0].pos.x), ddy = dy(bodies[j].pos.y, bodies[0].pos.y)
-        var len = hypot(ddx, ddy); if len == 0 { len = 1 }
-        ddx /= len; ddy /= len
-        doEject(j, ddx, ddy, strength: strength)
+        var mass: Float = 0
+        for j in grains { mass += bodies[j].m }
+        if mass <= 0 { return }
+        let ejectSpeed = (round.ejectSpeed ?? K.EJECT_SPEED) * strength
+        let es = ejectSpeed * (K.EJECT_REF_MASS / mass)
+        for j in grains {
+            bodies[j].vel += dir * es
+            bodies[j].heat = 1
+        }
+        bodies[0].vel -= dir * (mass * es / bodies[0].m)
+        say("flight.moving")
     }
 
-    /// Вариант Б: свайп — летит спутник, лучше всего лежащий по направлению свайпа, в сторону свайпа.
+    /// Вариант А: швырнуть комок со щупа s вдоль щупа наружу.
+    func throwProbe(_ s: Int, strength: Float = 1) {
+        guard probesOn, s >= 0, s < held.count, !winning else { return }
+        if probeOff[s] { return }                          // выключенный щуп не реагирует
+        if held[s].isEmpty { probePulse[s] = 1; return }   // пустой щуп: только дёрнуться
+        let off = clumpOffset(s)
+        let len = simd_length(off)
+        if len < 0.001 { return }
+        throwClump(s, dir: off / len, strength: strength)
+    }
+
+    /// Вариант Б: свайп — летит комок, лучше всего лежащий по направлению свайпа, в сторону свайпа.
     func throwInDirection(_ dxIn: Float, _ dyIn: Float, strength: Float) {
         guard probesOn, !winning else { return }
-        var len = hypot(dxIn, dyIn); if len == 0 { return }
-        let dxn = dxIn / len, dyn = dyIn / len
+        let len = hypot(dxIn, dyIn); if len == 0 { return }
+        let dir = SIMD2<Float>(dxIn / len, dyIn / len)
         var bestSlot = -1
         var bestProj = -Float.infinity
-        for s in 0..<holds.count where holds[s] >= 0 {
-            let j = holds[s]
-            let px = dx(bodies[j].pos.x, bodies[0].pos.x), py = dy(bodies[j].pos.y, bodies[0].pos.y)
-            len = hypot(px, py); if len == 0 { len = 1 }
-            let proj = (px * dxn + py * dyn) / len
+        for s in 0..<held.count where !held[s].isEmpty {
+            let off = clumpOffset(s)
+            let l = simd_length(off)
+            if l < 0.001 { continue }
+            let proj = simd_dot(off / l, dir)
             if proj > bestProj { bestProj = proj; bestSlot = s }
         }
         if bestSlot < 0 { return }
-        let j = holds[bestSlot]
-        releaseProbe(bestSlot)
-        probeReload[bestSlot] = round.probes?.reload ?? 0
-        computeBody()
-        doEject(j, dxn, dyn, strength: strength)
+        throwClump(bestSlot, dir: dir, strength: strength)
     }
 
-    /// «Отклеить последнее»: снять самый свежий атом, швырнуть его, шар получает отдачу.
+    /// «Отклеить последнее»: швырнуть самый свежий комок, корабль получает отдачу.
     func undoLast() {
         guard let s = holdOrder.last else { return }
         throwProbe(s)
@@ -684,11 +761,7 @@ final class Game {
 
     func updateMine() {
         for o in 0..<count where bodies[o].type == BodyType.atom { bodies[o].flags &= ~BodyFlag.mine }
-        if probesOn {
-            // своё — только то, что держится на щупах
-            for j in holds where j >= 0 { bodies[j].flags |= BodyFlag.mine }
-            return
-        }
+        if probesOn { return }      // при щупах «своё» — это комки на щупах (флаг held), а не ближние инертоны
         var queue = body
         var qi = 0
         while qi < queue.count {
@@ -740,14 +813,14 @@ final class Game {
         }
         dust.sort(); atoms.sort()
         func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
-        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel)))")
+        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count })")
         statsBursts = [:]
     }
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
         var eligible: [Int] = []
-        for o in 0..<count where bodies[o].type == type && Int(bodies[o].nbr) >= ex.max { eligible.append(o) }
+        for o in 0..<count where bodies[o].type == type && Int(bodies[o].nbr) >= ex.max && bodies[o].flags & BodyFlag.held == 0 { eligible.append(o) }   // на щупе не взрывается
         if eligible.count < ex.burst { return }
         var expected = ex.rate * dt * (Float(eligible.count) / ex.rateRef)
         while expected > 0 {
@@ -817,7 +890,11 @@ final class Game {
         }
         updateMine()
         if round.narration {
-            for o in 0..<count where bodies[o].type == BodyType.atom && bodies[o].isMine { say("flight.caught"); break }
+            if probesOn {
+                if held.contains(where: { !$0.isEmpty }) { say("flight.caught") }
+            } else {
+                for o in 0..<count where bodies[o].type == BodyType.atom && bodies[o].isMine { say("flight.caught"); break }
+            }
         }
         applyInstability(dt)
         runSpawner(dt)
@@ -999,7 +1076,7 @@ final class Game {
         let status: MoleculeStatus = assembled ? .assembled : (haveAll ? .haveAll : .notAssembled)
         set(&h.molStatus, status)
         set(&h.probesOn, probesOn)
-        set(&h.probeFilled, holds.map { $0 >= 0 })
+        set(&h.probeFilled, held.map { !$0.isEmpty })
         set(&h.probeOff, probeOff)
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)

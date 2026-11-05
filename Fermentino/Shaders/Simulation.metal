@@ -44,18 +44,12 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                           device const float *bondLen   [[buffer(6)]],
                           device const float *slots     [[buffer(7)]],
                           constant SimParams &p         [[buffer(8)]],
-                          device const int *holds       [[buffer(9)]],
                           uint i [[thread_position_in_grid]])
 {
     if (i >= p.bodyCount) return;
 
     const Body A = bodies[i];
 
-    // щупы хоста: holds[s] = индекс тела на слоте s или -1. Для не-хоста — на каком слоте меня держат.
-    int mySlot = -1;
-    if (p.holdOn != 0u && i != 0u) {
-        for (uint s = 0; s < FERM_MAX_SLOTS; ++s) if (holds[s] == int(i)) mySlot = int(s);
-    }
     const float2 hw = p.worldSize * 0.5;
     const float cutEnd2 = p.CUT_END * p.CUT_END;
     const float instR2 = p.INSTAB_R * p.INSTAB_R;
@@ -120,7 +114,10 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             // пыль об него вязнет, как обо всё остальное, иначе её вечно швыряет отскоком
             const bool hostElastic = p.holdOn != 0u
                 && ((i == 0u && B.type == BODY_ATOM) || (j == 0u && A.type == BODY_ATOM));
-            if (!aAnchor && B.type != BODY_ANCHOR && !hostElastic) {
+            // к комку на щупе ничего не прилипает: контакт «держится — свободное» упругий
+            const bool aHeldC = (A.flags & FLAG_HELD) != 0u, bHeldC = (B.flags & FLAG_HELD) != 0u;
+            const bool heldElastic = p.holdOn != 0u && (aHeldC != bHeldC) && i != 0u && j != 0u;
+            if (!aAnchor && B.type != BODY_ANCHOR && !hostElastic && !heldElastic) {
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
                 float stick = 1.0;
                 if (p.V_STICK > 0.0) stick = 1.0 - (1.0 - p.STICK_MIN) * exp(-abs(vn) / p.V_STICK);
@@ -128,16 +125,13 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             }
         }
 
-        // щуп: связь хост — пойманное тело. Длина держит на расстоянии, угол слота хоста — по месту.
+        // щуп: связь хост — тело на щупе. Тело помнит своё место в системе хоста: длину покоя (в angVel)
+        // и угол покоя относительно ориентации хоста (в ang) — так на одном щупе держится целый комок.
         if (p.holdOn != 0u) {
-            int hs = -1;
-            if (i == 0u) {
-                for (uint s = 0; s < FERM_MAX_SLOTS; ++s) if (holds[s] == int(j)) hs = int(s);
-            } else if (j == 0u) {
-                hs = mySlot;
-            }
-            if (hs >= 0) {
-                const float L = p.holdLen;                    // фиксированная длина: конец щупа не зависит от размера тела
+            const bool aHeld = (A.flags & FLAG_HELD) != 0u, bHeld = (B.flags & FLAG_HELD) != 0u;
+            if ((i == 0u && bHeld) || (j == 0u && aHeld)) {
+                const float L = (i == 0u) ? B.angVel : A.angVel;
+                const float restAng = (i == 0u) ? B.ang : A.ang;
                 const float mu = mm / (A.m + B.m);
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
                 fnet += p.holdK * mu * (r - L) - p.holdDamp * mu * vn;
@@ -146,11 +140,10 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                 const float vtB = (B.vel.x - A.vel.x) * px + (B.vel.y - A.vel.y) * py;
                 float fB = 0.0;
                 if (i == 0u) {
-                    const float eHost = wrapAngle(phi - (A.ang + slots[hs]));
-                    tq += eHost;
+                    const float eHost = wrapAngle(phi - (A.ang + restAng));
                     fB = -mu * (A.kAngle * eHost) - p.holdDamp * mu * vtB;
                 } else {
-                    const float eHost = wrapAngle(phi + M_PI_F - (B.ang + slots[hs]));
+                    const float eHost = wrapAngle(phi + M_PI_F - (B.ang + restAng));
                     fB = -mu * (B.kAngle * eHost) - p.holdDamp * mu * vtB;
                 }
                 acc -= float2(px, py) * (fB / A.m);
