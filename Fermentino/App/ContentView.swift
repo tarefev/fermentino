@@ -49,8 +49,6 @@ struct ContentView: View {
                 .padding(.vertical, 6)
             }
             if session.hud.probesOn {
-                ProbeLabels(hud: session.hud)
-                    .ignoresSafeArea()
                 ProbeControls(hud: session.hud, session: session)
             }
             IntroView(hud: session.hud)
@@ -250,22 +248,42 @@ private struct MoleculeIcon: View {
     }
 }
 
-// MARK: - Цифры у концов щупов
+// MARK: - Фигура щупа (та же, что у конца щупа в игре)
 
-private struct ProbeLabels: View {
-    let hud: HUDModel
+private struct ProbeShapeIcon: View {
+    let index: Int
+    let color: Color
 
     var body: some View {
-        ZStack {
-            ForEach(Array(hud.probeLabels.enumerated()), id: \.offset) { s, p in
-                Text("\(s + 1)")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(hudText.opacity(s < hud.probeFilled.count && hud.probeFilled[s] ? 1 : 0.5))
-                    .shadow(color: .black, radius: 2)
-                    .position(p)
+        Canvas { ctx, size in
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            let r = min(size.width, size.height) / 2
+            switch index % 5 {
+            case 0:
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * 0.8, y: c.y - r * 0.8, width: r * 1.6, height: r * 1.6)), with: .color(color))
+            case 1:
+                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r * 0.72, y: c.y - r * 0.72, width: r * 1.44, height: r * 1.44)), with: .color(color), lineWidth: r * 0.32)
+            case 2:
+                var p = Path()
+                p.move(to: CGPoint(x: c.x, y: c.y - r * 0.9))
+                p.addLine(to: CGPoint(x: c.x + r * 0.9, y: c.y + r * 0.66))
+                p.addLine(to: CGPoint(x: c.x - r * 0.9, y: c.y + r * 0.66))
+                p.closeSubpath()
+                ctx.fill(p, with: .color(color))
+            case 3:
+                var p = Path()
+                p.move(to: CGPoint(x: c.x, y: c.y - r * 0.95))
+                p.addLine(to: CGPoint(x: c.x + r * 0.95, y: c.y))
+                p.addLine(to: CGPoint(x: c.x, y: c.y + r * 0.95))
+                p.addLine(to: CGPoint(x: c.x - r * 0.95, y: c.y))
+                p.closeSubpath()
+                ctx.fill(p, with: .color(color))
+            default:
+                let arm = r * 0.9, th = r * 0.3
+                ctx.fill(Path(CGRect(x: c.x - arm, y: c.y - th, width: arm * 2, height: th * 2)), with: .color(color))
+                ctx.fill(Path(CGRect(x: c.x - th, y: c.y - arm, width: th * 2, height: arm * 2)), with: .color(color))
             }
         }
-        .allowsHitTesting(false)
     }
 }
 
@@ -302,10 +320,9 @@ private struct ProbeControls: View {
                         Button {
                             session.throwProbe(s)
                         } label: {
-                            // один цвет на все щупы; какой щуп — по цифре. Занятый — светлая заливка, пустой — тёмная
-                            Text("\(s + 1)")
-                                .font(.system(size: 24, weight: .bold, design: .monospaced))
-                                .foregroundStyle(filled ? Color(red: 0x0a / 255, green: 0x0e / 255, blue: 0x1a / 255) : hudText.opacity(0.55))
+                            // один цвет на все щупы; какой щуп — по фигуре. Занятый — светлая заливка, пустой — тёмная
+                            ProbeShapeIcon(index: s, color: filled ? Color(red: 0x0a / 255, green: 0x0e / 255, blue: 0x1a / 255) : hudText.opacity(0.5))
+                                .frame(width: 26, height: 26)
                                 .frame(width: buttonSize, height: buttonSize)
                                 .background((filled ? hudText.opacity(0.92) : Color.black.opacity(0.35)), in: Circle())
                                 .overlay(Circle().stroke(hudText.opacity(filled ? 0.95 : 0.4), lineWidth: 2))

@@ -48,7 +48,6 @@ final class HUDModel {
     var controls = RoundControls()
     var probesOn = false
     var probeFilled: [Bool] = []
-    var probeLabels: [CGPoint] = []      // экранные позиции цифр у концов щупов
     var controlMode: ControlMode = .buttons
     var narration = ""
     var narrationOpacity: Double = 0

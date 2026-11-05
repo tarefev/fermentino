@@ -56,7 +56,7 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
     const float2 corner = quadCorners[vid];
     float2 ext = float2(s.radius + 1.0);
     if (s.shape == 1u) ext = s.halfSize;
-    if (s.shape == 3u) ext = float2(s.radius + 2.0);
+    if (s.shape == 3u || s.shape == 4u) ext = float2(s.radius + 2.0);
     const float2 local = corner * ext;
 
     ShapeOut out;
@@ -74,7 +74,18 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
 fragment float4 shapeFragment(ShapeOut in [[stage_in]])
 {
     float a = 1.0;
-    if (in.shape == 3u) {
+    if (in.shape == 4u) {
+        // правильный многоугольник вершиной вверх: максимум по нормалям сторон
+        const int n = int(in.inner);
+        const float apothem = in.radius * cos(M_PI_F / float(n));
+        float d = -1e9;
+        for (int k = 0; k < n; ++k) {
+            const float phi = -M_PI_F * 0.5 + M_PI_F / float(n) + float(k) * 2.0 * M_PI_F / float(n);
+            d = max(d, dot(in.local, float2(cos(phi), sin(phi))) - apothem);
+        }
+        const float edge = max(fwidth(d), 0.5);
+        a = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape == 3u) {
         // стрелка: остриё в +x локальной системы, повёрнутой на угол halfSize.x
         const float ang = in.halfSize.x;
         const float c = cos(ang), s = sin(ang);

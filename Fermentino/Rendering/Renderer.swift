@@ -88,7 +88,6 @@ final class Renderer: NSObject, MTKViewDelegate {
         var builder = SceneBuilder(game: game, size: view.bounds.size, scale: scale)
         let scene = builder.build()
         game.hud.zoneLabel = scene.zoneLabel
-        game.hud.probeLabels = scene.probeLabels
 
         guard let drawable = view.currentDrawable,
               let pass = view.currentRenderPassDescriptor else { return }

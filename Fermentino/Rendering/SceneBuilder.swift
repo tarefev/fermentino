@@ -13,7 +13,6 @@ struct RenderScene {
     var shapes: [ShapeInstance] = []
     var lines: [LineVertex] = []
     var zoneLabel: CGPoint? = nil
-    var probeLabels: [CGPoint] = []
 }
 
 struct SceneBuilder {
@@ -190,7 +189,7 @@ struct SceneBuilder {
         for i in 0..<n where bodies[i].type == BodyType.anchor { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.dust { drawBody(i, cam: cam) }
         for i in 0..<n where bodies[i].type == BodyType.atom && !bodies[i].isMine { drawBody(i, cam: cam) }
-        for i in 0..<n where bodies[i].type == BodyType.atom && bodies[i].isMine { drawBody(i, cam: cam) }
+        for i in 0..<n where bodies[i].type == BodyType.atom && bodies[i].isMine && !game.holds.contains(i) { drawBody(i, cam: cam) }
 
         if game.showBonds {
             let col = rgba(180, 200, 255, 0.35)
@@ -220,8 +219,33 @@ struct SceneBuilder {
         return scene
     }
 
-    /// Щупы хоста без линий и без цветов: пойманное тело — обычный «свой» шар, у свободного щупа точка.
-    /// Какой щуп какой — по цифре: она стоит сразу за концом щупа и повторяется на кнопке.
+    private mutating func polygon(_ x: Float, _ y: Float, _ r: Float, sides: Int, _ color: SIMD4<Float>) {
+        var s = ShapeInstance()
+        s.center = SIMD2<Float>(x, y)
+        s.radius = r
+        s.inner = Float(sides)       // для многоугольника: число сторон
+        s.color = color
+        s.shape = 4
+        scene.shapes.append(s)
+    }
+
+    /// Фигура щупа s с «радиусом» r: 0 круг, 1 кольцо, 2 треугольник, 3 ромб, 4 крест. Всегда стоит ровно,
+    /// не вращается вместе с крестом щупов — поэтому узнаётся на любой скорости.
+    private mutating func probeShape(_ s: Int, _ x: Float, _ y: Float, _ r: Float, _ col: SIMD4<Float>) {
+        switch s % 5 {
+        case 0: circle(x, y, r, col)
+        case 1: circle(x, y, r * 1.05, col, inner: r * 1.05 - max(1.4, r * 0.38))
+        case 2: polygon(x, y + r * 0.18, r * 1.45, sides: 3, col)
+        case 3: polygon(x, y, r * 1.3, sides: 4, col)
+        default:
+            let arm = r * 1.25, th = max(1.2, r * 0.42)
+            rect(x - arm, y - th, arm * 2, th * 2, col)
+            rect(x - th, y - arm, th * 2, arm * 2, col)
+        }
+    }
+
+    /// Щупы хоста: у каждого своя фигура, она же на кнопке. Пойманное тело принимает форму своего щупа,
+    /// свободный щуп — маленькая бледная фигура на его конце.
     private mutating func buildProbes(cam: SIMD2<Float>) {
         if !game.probesOn { return }
         let bodies = game.bodies
@@ -232,26 +256,30 @@ struct SceneBuilder {
         let tipR = pr.length * scale
         for s in 0..<game.holds.count {
             guard s < slots.count else { continue }
+            let j = game.holds[s]
+            if j >= 0 {
+                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
+                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
+                probeShape(s, ax, ay, bodies[j].r * scale * 1.15, K.COL_MINE)
+                continue
+            }
             let a = host.ang + slots[s]
-            // цифра — на луче щупа, сразу за шаром
-            let labelR = tipR + 17
-            scene.probeLabels.append(CGPoint(x: CGFloat(hp.x + cos(a) * labelR), y: CGFloat(hp.y + sin(a) * labelR)))
-            if game.holds[s] >= 0 { continue }          // пойманный шар рисуется как обычный «свой»
+            let tx = hp.x + cos(a) * tipR, ty = hp.y + sin(a) * tipR
             var col = rgb("#cfe6ff")
-            // рывок пустого щупа по нажатию кнопки
-            var bump: Float = 0
-            if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            // перезарядка после выстрела: вместо точки тусклое кольцо, которое стягивается к точке
+            // перезарядка после выстрела: тусклое кольцо, которое стягивается к концу щупа
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
             if reload > 0 {
                 col.w = 0.45
                 let rr = 2.5 + 6 * reload
-                circle(hp.x + cos(a) * tipR, hp.y + sin(a) * tipR, rr, col, inner: rr - 1.2)
+                circle(tx, ty, rr, col, inner: rr - 1.2)
                 continue
             }
-            col.w = 0.55 + 0.3 * bump
-            circle(hp.x + cos(a) * tipR, hp.y + sin(a) * tipR, 2 + 1.3 * bump, col)
+            // рывок пустого щупа по нажатию кнопки: фигура чуть выросла и вернулась
+            var bump: Float = 0
+            if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
+            col.w = 0.45 + 0.3 * bump
+            probeShape(s, tx, ty, 3.2 + 1.6 * bump, col)
         }
     }
 
