@@ -714,6 +714,36 @@ final class Game {
         if let dex = round.dust?.explode { burst(type: BodyType.dust, ex: dex, dt: dt) }
     }
 
+    // ---- отладочная статистика (включается переменной окружения FERM_STATS=1)
+    private let statsOn = ProcessInfo.processInfo.environment["FERM_STATS"] == "1"
+    private var statsT: Float = 0
+    private var statsBursts: [UInt32: Int] = [:]
+
+    private func printStats(_ dt: Float) {
+        guard statsOn else { return }
+        statsT += dt
+        if statsT < 1 { return }
+        statsT = 0
+        var dust: [Float] = [], atoms: [Float] = []
+        var dustEligible = 0, atomsNearHost = 0, dustNearHost = 0
+        let host = bodies[0]
+        let dexMax = round.dust?.explode?.max ?? 0
+        for o in 0..<count {
+            let v = simd_length(bodies[o].vel)
+            let d = hypot(dx(bodies[o].pos.x, host.pos.x), dy(bodies[o].pos.y, host.pos.y))
+            if bodies[o].type == BodyType.dust {
+                dust.append(v)
+                if Int(bodies[o].nbr) >= dexMax { dustEligible += 1 }
+                if d < 80 { dustNearHost += 1 }
+            }
+            if bodies[o].type == BodyType.atom { atoms.append(v); if d < 80 { atomsNearHost += 1 } }
+        }
+        dust.sort(); atoms.sort()
+        func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
+        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel)))")
+        statsBursts = [:]
+    }
+
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
         var eligible: [Int] = []
@@ -724,10 +754,12 @@ final class Game {
             if expected < 1 && Float.random(in: 0..<1) >= expected { break }
             for _ in 0..<ex.burst {
                 let A = eligible[Int.random(in: 0..<eligible.count)]
+                if bodies[A].heat > 0 { continue }      // уже выбито: одно тело не получает несколько толчков подряд
                 let ang = Float.random(in: 0..<(.pi * 2))
                 bodies[A].vel += SIMD2<Float>(cos(ang) * ex.speed, sin(ang) * ex.speed)
                 bodies[A].heat = 1
             }
+            statsBursts[type, default: 0] += 1
             expected -= 1
         }
     }
@@ -789,6 +821,7 @@ final class Game {
         }
         applyInstability(dt)
         runSpawner(dt)
+        printStats(dt)
     }
 
     // MARK: - Победа
