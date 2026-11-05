@@ -18,6 +18,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let shapeState: MTLRenderPipelineState
     private let lineState: MTLRenderPipelineState
     private let bgState: MTLRenderPipelineState
+    private var bgTexture: MTLTexture?      // фактура жижи, запечённая один раз при запуске
 
     private let ringSize = 3
     private var slot = 0
@@ -69,6 +70,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             print("Renderer init failed: \(error)")
             return nil
         }
+        bgTexture = Renderer.bakeBackground(device: device, queue: queue, library: library)
         for i in 0..<ringSize {
             let s = device.makeBuffer(length: MemoryLayout<ShapeInstance>.stride * shapeCapacity, options: .storageModeShared)!
             s.label = "shapes\(i)"
@@ -78,6 +80,33 @@ final class Renderer: NSObject, MTKViewDelegate {
             lineBuffers.append(l)
         }
         super.init()
+    }
+
+    /// Один раз считает фактуру жижи на весь тор-мир в текстуру 1024×1024 (полуплавающая точность,
+    /// чтобы на тёмных плавных разводах не было полос).
+    private static func bakeBackground(device: MTLDevice, queue: MTLCommandQueue, library: MTLLibrary) -> MTLTexture? {
+        let size = 1024
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: size, height: size, mipmapped: false)
+        desc.usage = [.shaderRead, .shaderWrite]
+        guard let texture = device.makeTexture(descriptor: desc),
+              let fn = library.makeFunction(name: "bakeBackground"),
+              let state = try? device.makeComputePipelineState(function: fn),
+              let commandBuffer = queue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder() else { return nil }
+        texture.label = "liquid"
+        var uniforms = FrameUniforms()
+        uniforms.worldSize = K.WORLD_W
+        encoder.setComputePipelineState(state)
+        encoder.setTexture(texture, index: 0)
+        encoder.setBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+        let w = state.threadExecutionWidth
+        let h = max(1, state.maxTotalThreadsPerThreadgroup / w)
+        encoder.dispatchThreadgroups(MTLSize(width: (size + w - 1) / w, height: (size + h - 1) / h, depth: 1),
+                                     threadsPerThreadgroup: MTLSize(width: w, height: h, depth: 1))
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return texture
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
@@ -122,6 +151,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         encoder.setRenderPipelineState(bgState)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+        encoder.setFragmentTexture(bgTexture, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         if shapeCount > 0 {
             encoder.setRenderPipelineState(shapeState)

@@ -180,10 +180,9 @@ inline float bgPerlin(float2 w, float cell, int period)
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 1.41;
 }
 
-fragment float4 bgFragment(BgOut in [[stage_in]], constant FrameUniforms &u [[buffer(1)]])
+// цвет фактуры жижи в мировой точке w0 (разводы, без зерна)
+inline float3 bgLiquid(float2 w0, float ws)
 {
-    const float2 w0 = u.cam + (in.pt - u.viewSize * 0.5) / u.scale;
-    const float ws = u.worldSize;
     // искажение координат: разводы текут, а не лежат по осям решётки
     const float2 warp = float2(bgPerlin(w0 + float2(310.0, 90.0), 300.0, int(ws / 300.0)),
                                bgPerlin(w0 + float2(40.0, 700.0), 300.0, int(ws / 300.0)));
@@ -196,8 +195,29 @@ fragment float4 bgFragment(BgOut in [[stage_in]], constant FrameUniforms &u [[bu
     n = saturate(n * 0.5 + 0.5);
     const float3 base = float3(0.020, 0.024, 0.039);     // #05060a
     const float3 tint = float3(0.075, 0.105, 0.165);
-    float3 col = base + tint * smoothstep(0.25, 0.85, n);
-    // зерно: мягкие крупинки со случайным сдвигом и размером внутри ячейки — сетка не читается
+    return base + tint * smoothstep(0.25, 0.85, n);
+}
+
+// Запекание фактуры в текстуру один раз при запуске: текстура покрывает весь тор-мир и тайлится.
+// Считать шум на каждый пиксель каждый кадр слишком дорого для телефона.
+kernel void bakeBackground(texture2d<float, access::write> outTex [[texture(0)]],
+                           constant FrameUniforms &u               [[buffer(1)]],
+                           uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= outTex.get_width() || gid.y >= outTex.get_height()) return;
+    const float2 w0 = (float2(gid) + 0.5) / float2(outTex.get_width(), outTex.get_height()) * u.worldSize;
+    outTex.write(float4(bgLiquid(w0, u.worldSize), 1.0), gid);
+}
+
+fragment float4 bgFragment(BgOut in [[stage_in]],
+                           constant FrameUniforms &u [[buffer(1)]],
+                           texture2d<float> liquid   [[texture(0)]])
+{
+    constexpr sampler smp(address::repeat, filter::linear);
+    const float2 w0 = u.cam + (in.pt - u.viewSize * 0.5) / u.scale;
+    const float ws = u.worldSize;
+    float3 col = liquid.sample(smp, w0 / ws).rgb;
+    // зерно: мягкие крупинки со случайным сдвигом и размером внутри ячейки — сетка не читается (дёшево: три хэша)
     const float cellG = 9.0;
     const float2 gs = w0 / cellG;
     const float2 gq = floor(gs);

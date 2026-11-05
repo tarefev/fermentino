@@ -710,8 +710,9 @@ final class Game {
         var mass: Float = 0
         for j in grains { mass += bodies[j].m }
         if mass <= 0 { return }
-        let ejectSpeed = (round.ejectSpeed ?? K.EJECT_SPEED) * strength
-        let es = ejectSpeed * (K.EJECT_REF_MASS / mass)
+        // скорость вылета не зависит от числа зёрен, поэтому отдача растёт с массой набора:
+        // полный комок толкает сильно, одиночное ядрышко — вяло
+        let es = pr.throwSpeed * strength
         for j in grains {
             bodies[j].vel += dir * es
             bodies[j].heat = 1
@@ -1058,13 +1059,13 @@ final class Game {
         if elapsed > 0.05 { elapsed = 0.05 }
         acc += elapsed
         var steps = 0
-        while acc >= K.DT && steps < 5 {
+        while acc >= K.DT && steps < 3 {      // не больше трёх шагов на кадр: под нагрузкой игра замедляется, а не захлёбывается
             let t0 = CACurrentMediaTime()
             stepPhysics(K.DT); acc -= K.DT; steps += 1
             statsPhysMs += (CACurrentMediaTime() - t0) * 1000; statsSteps += 1
         }
         statsFrames += 1
-        if steps == 5 { acc = 0 }
+        if steps == 3 { acc = 0 }
         if winning { advanceCapture(elapsed) }
         if !won { checkWin() }
         if winBannerT >= 0 {
