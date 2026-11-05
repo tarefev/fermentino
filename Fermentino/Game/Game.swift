@@ -238,8 +238,13 @@ final class Game {
         }
         // флаг «на щупе» для ядра сил (место покоя тело хранит само: ang и angVel)
         if probesOn {
-            for o in 0..<count { bodies[o].flags &= ~BodyFlag.held }
-            for clump in held { for j in clump { bodies[j].flags |= BodyFlag.held } }
+            for o in 0..<count { bodies[o].flags &= ~BodyFlag.group }
+            for (s, clump) in held.enumerated() {
+                for (k, j) in clump.enumerated() {
+                    bodies[j].flags |= k == 0 ? BodyFlag.held : BodyFlag.member   // первое зерно — ядро, прибито к щупу
+                    bodies[j].kAngle = Float(s)                                    // номер щупа
+                }
+            }
         }
         for i in 0..<mc {
             for j in 0..<mc {
@@ -567,10 +572,13 @@ final class Game {
     }
 
     // MARK: - Щупы: ловят комки пыли, бросок только с щупа
+    //
+    // Комок на щупе = ядро + остальные зёрна. Ядро (первое зерно) щуп жёстко держит ровно в точке своего
+    // конца. Остальные — обычные тела: их удерживает притяжение конца щупа и липкий контакт друг с другом.
 
     /// Отпустить всё, что держит щуп s, без броска.
     private func releaseProbe(_ s: Int) {
-        for j in held[s] { bodies[j].flags &= ~BodyFlag.held }
+        for j in held[s] { bodies[j].flags &= ~BodyFlag.group }
         held[s] = []
         holdOrder.removeAll { $0 == s }
     }
@@ -581,108 +589,72 @@ final class Game {
         return set
     }
 
-    /// Комок вокруг зерна seed: зёрна пыли, связанные касанием (расстояние ≤ (rA + rB)·linkGap).
-    /// Обход в ширину от seed, не больше limit зёрен — первыми берутся ближайшие по цепочке.
-    /// Зерно сидит на борту корабля (налипло): такое не часть свободного комка и щупом не берётся.
-    private func onHull(_ o: Int) -> Bool {
-        let host = bodies[0]
-        let ddx = dx(bodies[o].pos.x, host.pos.x), ddy = dy(bodies[o].pos.y, host.pos.y)
-        let reach = host.r + bodies[o].r + 2.5
-        return ddx * ddx + ddy * ddy <= reach * reach
-    }
-
-    private func clump(from seed: Int, limit: Int, gap: Float, taken: Set<Int>) -> [Int] {
-        var result = [seed]
-        var inResult: Set<Int> = [seed]
-        var qi = 0
-        while qi < result.count && result.count < limit {
-            let b = result[qi]; qi += 1
-            let bp = bodies[b].pos, br = bodies[b].r
-            for o in cores.count..<count {
-                if result.count >= limit { break }
-                if bodies[o].type != BodyType.dust || inResult.contains(o) || taken.contains(o) { continue }
-                if bodies[o].heat > 0 || bodies[o].isCaptured || onHull(o) { continue }
-                let ddx = dx(bodies[o].pos.x, bp.x), ddy = dy(bodies[o].pos.y, bp.y)
-                let reach = (br + bodies[o].r) * gap
-                if ddx * ddx + ddy * ddy <= reach * reach {
-                    result.append(o); inResult.insert(o)
-                }
-            }
-        }
-        return result
+    /// Мировая позиция конца щупа s.
+    private func probeTip(_ s: Int, length: Float) -> SIMD2<Float> {
+        let a = bodies[0].ang + cores[0].slots[s]
+        return bodies[0].pos + SIMD2<Float>(cos(a), sin(a)) * length
     }
 
     private func updateHolds() {
         guard let pr = round.probes, !bodies[0].isCaptured else { return }
-        let host = bodies[0]
-        // зерно, которое унесло далеко от своего места на щупе, отваливается; пустой комок освобождает щуп
+        // зерно комка, отнесённое далеко от конца щупа, отваливается; без ядра комок распадается
         for s in 0..<held.count where !held[s].isEmpty {
-            var kept: [Int] = []
-            for j in held[s] {
-                let a = host.ang + bodies[j].ang
-                let tx = host.pos.x + cos(a) * bodies[j].angVel, ty = host.pos.y + sin(a) * bodies[j].angVel
-                let ddx = dx(bodies[j].pos.x, tx), ddy = dy(bodies[j].pos.y, ty)
-                if ddx * ddx + ddy * ddy > pr.holdRadius * pr.holdRadius || bodies[j].isCaptured {
-                    bodies[j].flags &= ~BodyFlag.held
+            let tip = probeTip(s, length: pr.length)
+            if bodies[held[s][0]].isCaptured { releaseProbe(s); continue }
+            var kept = [held[s][0]]
+            for j in held[s].dropFirst() {
+                let ddx = dx(bodies[j].pos.x, tip.x), ddy = dy(bodies[j].pos.y, tip.y)
+                if ddx * ddx + ddy * ddy > pr.dropR * pr.dropR || bodies[j].isCaptured {
+                    bodies[j].flags &= ~BodyFlag.group
                 } else {
                     kept.append(j)
                 }
             }
             held[s] = kept
-            if kept.isEmpty { holdOrder.removeAll { $0 == s } }
         }
         // перезарядка щупов после выстрела
         for s in 0..<probeReload.count where probeReload[s] > 0 { probeReload[s] = max(0, probeReload[s] - K.DT) }
-        // захват: щуп свободен, включён и не перезаряжается, а у его конца оказался комок от minClump зёрен
+
         let usedByBonds = Set(cores[0].bonds.values)
         var taken = heldSet
-        for s in 0..<held.count where held[s].isEmpty && probeReload[s] <= 0 && !probeOff[s] && !usedByBonds.contains(s) {
-            let a = host.ang + cores[0].slots[s]
-            let tipX = host.pos.x + cos(a) * pr.length, tipY = host.pos.y + sin(a) * pr.length
-            // ближайшее к концу щупа свободное зерно в радиусе захвата
-            var seed = -1
-            var bestD = pr.captureR * pr.captureR
-            for o in cores.count..<count where bodies[o].type == BodyType.dust {
-                if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) || onHull(o) { continue }
-                let ddx = dx(bodies[o].pos.x, tipX), ddy = dy(bodies[o].pos.y, tipY)
-                let d = ddx * ddx + ddy * ddy
-                if d <= bestD { bestD = d; seed = o }
+        for s in 0..<held.count where !probeOff[s] && !usedByBonds.contains(s) {
+            // ядро: свободный щуп берёт зерно, которое КОСНУЛОСЬ его конца, и ставит его ровно в эту точку
+            if held[s].isEmpty {
+                if probeReload[s] > 0 { continue }
+                let tip = probeTip(s, length: pr.length)
+                var seed = -1
+                var bestD = Float.infinity
+                for o in cores.count..<count where bodies[o].type == BodyType.dust {
+                    if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) { continue }
+                    let ddx = dx(bodies[o].pos.x, tip.x), ddy = dy(bodies[o].pos.y, tip.y)
+                    let reach = bodies[o].r + pr.touch
+                    let d = ddx * ddx + ddy * ddy
+                    if d <= reach * reach && d < bestD { bestD = d; seed = o }
+                }
+                if seed < 0 { continue }
+                bodies[seed].angVel = pr.length                // место покоя ядра — сам конец щупа
+                bodies[seed].ang = cores[0].slots[s]
+                bodies[seed].flags |= BodyFlag.held
+                bodies[seed].kAngle = Float(s)
+                taken.insert(seed)
+                held[s] = [seed]
+                holdOrder.append(s)
+                continue
             }
-            if seed < 0 { continue }
-            let grains = clump(from: seed, limit: pr.maxClump, gap: pr.linkGap, taken: taken)
-            if grains.count < pr.minClump { continue }
-            // каждое зерно запоминает своё место в системе хоста: длину и угол относительно его ориентации
-            for j in grains {
-                let rx = dx(bodies[j].pos.x, host.pos.x), ry = dy(bodies[j].pos.y, host.pos.y)
-                bodies[j].angVel = max(1, hypot(rx, ry))
-                bodies[j].ang = atan2(ry, rx) - host.ang
-                bodies[j].flags |= BodyFlag.held
-                taken.insert(j)
-            }
-            held[s] = grains
-            holdOrder.append(s)
-        }
-        // рост: комок на щупе берёт зёрна, пока их меньше maxClump — те, что у конца щупа или касаются комка
-        for s in 0..<held.count where !held[s].isEmpty && held[s].count < pr.maxClump && !probeOff[s] {
-            let a = host.ang + cores[0].slots[s]
-            let tipX = host.pos.x + cos(a) * pr.length, tipY = host.pos.y + sin(a) * pr.length
+            // рост: к комку цепляется только то зерно, которое его КАСАЕТСЯ, пока зёрен меньше maxClump
+            if held[s].count >= pr.maxClump { continue }
             for o in cores.count..<count where bodies[o].type == BodyType.dust {
                 if held[s].count >= pr.maxClump { break }
-                if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) || onHull(o) { continue }
-                let tdx = dx(bodies[o].pos.x, tipX), tdy = dy(bodies[o].pos.y, tipY)
-                var joins = tdx * tdx + tdy * tdy <= pr.captureR * pr.captureR
-                if !joins {
-                    for j in held[s] {
-                        let ddx = dx(bodies[o].pos.x, bodies[j].pos.x), ddy = dy(bodies[o].pos.y, bodies[j].pos.y)
-                        let reach = (bodies[o].r + bodies[j].r) * pr.linkGap
-                        if ddx * ddx + ddy * ddy <= reach * reach { joins = true; break }
-                    }
+                if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) { continue }
+                var touches = false
+                for j in held[s] {
+                    let ddx = dx(bodies[o].pos.x, bodies[j].pos.x), ddy = dy(bodies[o].pos.y, bodies[j].pos.y)
+                    let reach = (bodies[o].r + bodies[j].r) * pr.linkGap
+                    if ddx * ddx + ddy * ddy <= reach * reach { touches = true; break }
                 }
-                if !joins { continue }
-                let rx = dx(bodies[o].pos.x, host.pos.x), ry = dy(bodies[o].pos.y, host.pos.y)
-                bodies[o].angVel = max(1, hypot(rx, ry))
-                bodies[o].ang = atan2(ry, rx) - host.ang
-                bodies[o].flags |= BodyFlag.held
+                if !touches { continue }
+                bodies[o].flags |= BodyFlag.member
+                bodies[o].kAngle = Float(s)
                 taken.insert(o)
                 held[s].append(o)
             }
@@ -854,7 +826,7 @@ final class Game {
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
         var eligible: [Int] = []
-        for o in 0..<count where bodies[o].type == type && Int(bodies[o].nbr) >= ex.max && bodies[o].flags & BodyFlag.held == 0 { eligible.append(o) }   // на щупе не взрывается
+        for o in 0..<count where bodies[o].type == type && Int(bodies[o].nbr) >= ex.max && bodies[o].flags & BodyFlag.group == 0 { eligible.append(o) }   // комок на щупе не взрывается
         if eligible.count < ex.burst { return }
         var expected = ex.rate * dt * (Float(eligible.count) / ex.rateRef)
         while expected > 0 {
@@ -895,6 +867,7 @@ final class Game {
             p.holdDamp = pr.damp
             p.heldGravity = pr.heldGravity
             p.hostGravity = pr.hostGravity
+            p.memberPull = pr.memberPull
         }
         return p
     }

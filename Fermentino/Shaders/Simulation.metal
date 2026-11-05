@@ -15,7 +15,9 @@ using namespace metal;
 #define BODY_ANCHOR 2u
 #define BODY_DUST   3u   // физика как у инертона, в логике не участвует
 #define FLAG_CAPTURED 1u
-#define FLAG_HELD     16u
+#define FLAG_HELD     16u   // ядро комка: прибито к концу щупа
+#define FLAG_MEMBER   32u   // зерно комка: держится притяжением конца своего щупа и контактом
+#define FLAG_GROUP    48u
 
 inline float wrapDelta(float d, float halfSize, float full)
 {
@@ -104,8 +106,8 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         if (p.holdOn != 0u) {
             if (i == 0u) gA *= p.hostGravity;      // корабль притягивает слабее: тянут концы свободных щупов
             if (j == 0u) gB *= p.hostGravity;
-            if ((A.flags & FLAG_HELD) != 0u) gA *= p.heldGravity;
-            if ((B.flags & FLAG_HELD) != 0u) gB *= p.heldGravity;
+            if ((A.flags & FLAG_GROUP) != 0u) gA *= p.heldGravity;
+            if ((B.flags & FLAG_GROUP) != 0u) gB *= p.heldGravity;
         }
         float fnet = gOn * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
 
@@ -118,7 +120,7 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             const bool hostElastic = p.holdOn != 0u
                 && ((i == 0u && B.type == BODY_ATOM) || (j == 0u && A.type == BODY_ATOM));
             // к комку на щупе ничего не прилипает: контакт «держится — свободное» упругий
-            const bool aHeldC = (A.flags & FLAG_HELD) != 0u, bHeldC = (B.flags & FLAG_HELD) != 0u;
+            const bool aHeldC = (A.flags & FLAG_GROUP) != 0u, bHeldC = (B.flags & FLAG_GROUP) != 0u;
             const bool heldElastic = p.holdOn != 0u && (aHeldC != bHeldC) && i != 0u && j != 0u;
             if (!aAnchor && B.type != BODY_ANCHOR && !hostElastic && !heldElastic) {
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
@@ -176,11 +178,15 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
 
         if (!aAnchor) acc += float2(nx, ny) * (fnet / A.m);
 
-        // концы свободных щупов притягивают тело B; хост получает равную противоположную силу
+        // концы щупов притягивают тело B; хост получает равную противоположную силу.
+        // Зерно комка тянет только конец ЕГО щупа (полной силой), свободное тело — все щупы по их текущей массе.
         if (i == 0u && p.holdOn != 0u && B.type != BODY_ANCHOR
             && (B.flags & (FLAG_CAPTURED | FLAG_HELD)) == 0u) {
-            for (uint s = 0; s < FERM_MAX_SLOTS; ++s) {
-                const float pm = probeMass[s];
+            const bool member = (B.flags & FLAG_MEMBER) != 0u;
+            const int ownSlot = int(B.kAngle);
+            for (int s = 0; s < int(FERM_MAX_SLOTS); ++s) {
+                float pm = probeMass[s];
+                if (member) pm = (s == ownSlot) ? p.memberPull : 0.0;
                 if (pm <= 0.0) continue;
                 const float ta = A.ang + slots[s];
                 const float2 tip = A.pos + float2(cos(ta), sin(ta)) * p.holdLen;
@@ -196,11 +202,14 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         }
     }
 
-    // конец свободного щупа притягивает это тело
+    // конец щупа притягивает это тело (зерно комка — только свой щуп, свободное — все)
     if (i != 0u && p.holdOn != 0u && !aAnchor && (A.flags & (FLAG_CAPTURED | FLAG_HELD)) == 0u) {
         const Body H = bodies[0];
-        for (uint s = 0; s < FERM_MAX_SLOTS; ++s) {
-            const float pm = probeMass[s];
+        const bool member = (A.flags & FLAG_MEMBER) != 0u;
+        const int ownSlot = int(A.kAngle);
+        for (int s = 0; s < int(FERM_MAX_SLOTS); ++s) {
+            float pm = probeMass[s];
+            if (member) pm = (s == ownSlot) ? p.memberPull : 0.0;
             if (pm <= 0.0) continue;
             const float ta = H.ang + slots[s];
             const float2 tip = H.pos + float2(cos(ta), sin(ta)) * p.holdLen;
