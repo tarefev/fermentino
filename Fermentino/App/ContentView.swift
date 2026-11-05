@@ -295,7 +295,9 @@ private struct ProbeControls: View {
                         let hold = s < hud.probeHold.count ? Double(hud.probeHold[s]) : 0
                         let on = off ? hold : 1 - hold          // 1 — выглядит включённой, 0 — выключенной
                         let col = probeColors[s % probeColors.count]
-                        let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : 0.06
+                        // выключенную кнопку при удержании ведём к тому виду, какой она получит после включения
+                        // (щуп с одним своим ядрышком), иначе в конце заливка появляется скачком
+                        let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
                         Circle()
                             .fill(col.opacity(bright * on))
                             .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))

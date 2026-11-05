@@ -259,9 +259,10 @@ struct SceneBuilder {
                 faint.w = 0.25 + 0.75 * hold
                 circle(tx, ty, nr, faint, inner: nr - 1)
                 if hold > 0 {
-                    var core = col
-                    core.w = hold
-                    circle(tx, ty, max(0.4, nr * hold), core)
+                    // ядрышко растёт вместе с кольцом, ровно и сразу плотным: быстро вначале, плавно к концу.
+                    // (раньше оно набирало и размер, и плотность — почти всё появлялось в последний момент, хлопком)
+                    let grow = 1 - (1 - hold) * (1 - hold)
+                    circle(tx, ty, max(0.4, nr * grow), col)
                 }
                 continue
             }
