@@ -76,6 +76,7 @@ final class Game {
     // ---- щупы хоста (захват по валентности)
     private(set) var holds: [Int] = []       // слот хоста → индекс тела или -1
     private var holdOrder: [Int] = []        // слоты в порядке захвата, последний — самый свежий
+    private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
     var probesOn: Bool { round.probes != nil }
     var controlMode: ControlMode = .buttons
 
@@ -353,6 +354,7 @@ final class Game {
         holdOrder = []
         if let pr = round.probes {
             holds = Array(repeating: -1, count: cores[0].slots.count)
+            probePulse = Array(repeating: 0, count: cores[0].slots.count)
             bodies[0].kAngle = pr.kAngle
         }
 
@@ -596,7 +598,8 @@ final class Game {
 
     /// Вариант А: швырнуть то, что на щупе s, вдоль щупа наружу; шар получает отдачу.
     func throwProbe(_ s: Int, strength: Float = 1) {
-        guard probesOn, s >= 0, s < holds.count, holds[s] >= 0, !winning else { return }
+        guard probesOn, s >= 0, s < holds.count, !winning else { return }
+        if holds[s] < 0 { probePulse[s] = 1; return }      // пустой щуп: только дёрнуться
         let j = holds[s]
         releaseProbe(s)
         computeBody()
@@ -905,6 +908,7 @@ final class Game {
             if winBannerT >= 3 { winBannerT = -1; hud.showWin = true }
         }
         gfxSpin += 0.05
+        for s in 0..<probePulse.count where probePulse[s] > 0 { probePulse[s] = max(0, probePulse[s] - rawElapsed / 0.28) }
         advanceNarration()
 
         fpsAcc += rawElapsed; fpsFrames += 1

@@ -248,10 +248,13 @@ struct SceneBuilder {
             }
             guard s < slots.count else { continue }
             let a = host.ang + slots[s]
-            let r0 = host.r * scale + 2, r1 = host.r * scale + 12
-            col.w = 0.6
+            // рывок пустого щупа по нажатию кнопки: вытянулся и вернулся
+            var bump: Float = 0
+            if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
+            let r0 = host.r * scale + 2, r1 = host.r * scale + 12 + 12 * bump
+            col.w = 0.6 + 0.4 * bump
             line(hp.x + cos(a) * r0, hp.y + sin(a) * r0, hp.x + cos(a) * r1, hp.y + sin(a) * r1, col)
-            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2, col)
+            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 2 * bump, col)
         }
     }
 
