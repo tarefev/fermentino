@@ -155,7 +155,7 @@ struct SceneBuilder {
             let sx = game.dx(s.x, cam.x) * scale, sy = game.dy(s.y, cam.y) * scale
             if sx < -cx || sx > cx || sy < -cy || sy > cy { continue }
             let r: Float = s.big ? 1.6 : 1.0
-            rect(cx + sx - r, cy + sy - r, r * 2, r * 2, s.big ? K.COL_STAR_BRIGHT : K.COL_STAR)
+            circle(cx + sx, cy + sy, r, s.big ? K.COL_STAR_BRIGHT : K.COL_STAR)   // круглые, не квадратики
         }
 
         // радиус «магнита» вокруг ядер (при щупах его нет: захват идёт по длине щупа, не по радиусу)

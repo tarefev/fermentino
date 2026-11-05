@@ -132,43 +132,65 @@ inline float bgHash(int2 c)
     uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u;
     h = (h ^ (h >> 13)) * 1274126177u;
     h ^= h >> 16;
-    return float(h & 0xffffu) / 65535.0;
+    return float(h & 0xffffffu) / 16777215.0;
 }
 
-// value noise на решётке с шагом cell, тайлится с периодом мира (period = worldSize / cell узлов)
-inline float bgNoise(float2 w, float cell, int period)
+inline int2 bgWrap(int2 i, int period)
+{
+    return int2(((i.x % period) + period) % period, ((i.y % period) + period) % period);
+}
+
+// единичный градиент в узле решётки
+inline float2 bgGrad(int2 i, int period)
+{
+    const float a = bgHash(bgWrap(i, period)) * 6.2831853;
+    return float2(cos(a), sin(a));
+}
+
+// градиентный шум (Перлин) с шагом cell, тайлится с периодом мира; значение примерно в [-1, 1]
+inline float bgPerlin(float2 w, float cell, int period)
 {
     const float2 q = w / cell;
     const float2 fl = floor(q);
-    float2 f = q - fl;
-    f = f * f * (3.0 - 2.0 * f);
-    int2 i = int2(fl);
-    i = int2(((i.x % period) + period) % period, ((i.y % period) + period) % period);
-    const int2 j = int2((i.x + 1) % period, (i.y + 1) % period);
-    const float a = bgHash(int2(i.x, i.y)), b = bgHash(int2(j.x, i.y));
-    const float c = bgHash(int2(i.x, j.y)), d = bgHash(int2(j.x, j.y));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    const float2 f = q - fl;
+    const int2 i = int2(fl);
+    const float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);   // плавность до второй производной: без граней
+    const float a = dot(bgGrad(i, period), f);
+    const float b = dot(bgGrad(i + int2(1, 0), period), f - float2(1.0, 0.0));
+    const float c = dot(bgGrad(i + int2(0, 1), period), f - float2(0.0, 1.0));
+    const float d = dot(bgGrad(i + int2(1, 1), period), f - float2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 1.41;
 }
 
 fragment float4 bgFragment(BgOut in [[stage_in]], constant FrameUniforms &u [[buffer(1)]])
 {
-    const float2 w = u.cam + (in.pt - u.viewSize * 0.5) / u.scale;
+    const float2 w0 = u.cam + (in.pt - u.viewSize * 0.5) / u.scale;
     const float ws = u.worldSize;
-    // три масштаба разводов: крупные пятна, средние клочья, мелкая рябь
-    const float n = 0.50 * bgNoise(w, 180.0, int(ws / 180.0))
-                  + 0.32 * bgNoise(w, 60.0, int(ws / 60.0))
-                  + 0.18 * bgNoise(w, 20.0, int(ws / 20.0));
+    // искажение координат: разводы текут, а не лежат по осям решётки
+    const float2 warp = float2(bgPerlin(w0 + float2(310.0, 90.0), 300.0, int(ws / 300.0)),
+                               bgPerlin(w0 + float2(40.0, 700.0), 300.0, int(ws / 300.0)));
+    const float2 w = w0 + warp * 70.0;
+    // четыре октавы: от крупных пятен до мелкой ряби
+    float n = 0.50 * bgPerlin(w, 240.0, int(ws / 240.0))
+            + 0.27 * bgPerlin(w, 120.0, int(ws / 120.0))
+            + 0.15 * bgPerlin(w, 60.0, int(ws / 60.0))
+            + 0.08 * bgPerlin(w, 30.0, int(ws / 30.0));
+    n = saturate(n * 0.5 + 0.5);
     const float3 base = float3(0.020, 0.024, 0.039);     // #05060a
-    const float3 tint = float3(0.085, 0.115, 0.175);
-    float3 col = base + tint * pow(n, 1.6);
-    // зерно: редкие круглые мягкие крупинки на решётке 6 единиц
-    const float2 gs = w / 6.0;
+    const float3 tint = float3(0.075, 0.105, 0.165);
+    float3 col = base + tint * smoothstep(0.25, 0.85, n);
+    // зерно: мягкие крупинки со случайным сдвигом и размером внутри ячейки — сетка не читается
+    const float cellG = 9.0;
+    const float2 gs = w0 / cellG;
     const float2 gq = floor(gs);
-    const int gp = int(ws / 6.0);
-    const float g = bgHash(int2(((int(gq.x) % gp) + gp) % gp, ((int(gq.y) % gp) + gp) % gp));
-    if (g > 0.93) {
-        const float gd = length(gs - gq - 0.5);
-        col += float3(0.050, 0.062, 0.085) * (1.0 - smoothstep(0.12, 0.42, gd));
+    const int gp = int(ws / cellG);
+    const int2 gi = bgWrap(int2(gq), gp);
+    const float g = bgHash(gi);
+    if (g > 0.45) {
+        const float2 off = float2(bgHash(gi + int2(17, 3)), bgHash(gi + int2(5, 29))) * 0.6 + 0.2;
+        const float rad = 0.05 + 0.09 * bgHash(gi + int2(41, 11));
+        const float gd = length(gs - gq - off);
+        col += float3(0.055, 0.068, 0.095) * (1.0 - smoothstep(rad * 0.4, rad, gd)) * (0.4 + 0.6 * g);
     }
     return float4(col, 1.0);
 }
