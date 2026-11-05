@@ -158,8 +158,8 @@ struct SceneBuilder {
             rect(cx + sx - r, cy + sy - r, r * 2, r * 2, s.big ? K.COL_STAR_BRIGHT : K.COL_STAR)
         }
 
-        // радиус «магнита» вокруг ядер
-        for c in 0..<game.cores.count {
+        // радиус «магнита» вокруг ядер (при щупах его нет: захват идёт по длине щупа, не по радиусу)
+        for c in 0..<game.cores.count where !game.probesOn {
             let p = screen(bodies[c].pos.x, bodies[c].pos.y, cam: cam)
             circle(p.x, p.y, K.LINK_R * scale, rgba(86, 224, 160, 0.10), inner: K.LINK_R * scale - 1)
         }
