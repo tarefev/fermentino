@@ -258,36 +258,26 @@ struct SceneBuilder {
         }
     }
 
-    /// Стрелка на краю экрана в сторону поглотителя (если он не виден).
+    /// Компас у корабля: стрелка на кольце вокруг хоста всегда смотрит точно на поглотитель
+    /// и плавно гаснет при подлёте к нему. Никаких сдвигов — направление всегда честное.
     private mutating func buildZoneArrow(zp: SIMD2<Float>) {
-        let margin: Float = 36
-        let inside = zp.x > margin && zp.x < w - margin && zp.y > margin + 150 && zp.y < h - margin
-        if inside { return }
         let d = zp - SIMD2<Float>(cx, cy)
         let len = simd_length(d)
         if len < 1 { return }
         let dir = d / len
-        // точка на прямоугольнике отступа, по лучу из центра
-        let halfW = cx - margin, halfH = cy - margin
-        var t = Float.infinity
-        if abs(dir.x) > 1e-4 { t = min(t, halfW / abs(dir.x)) }
-        if abs(dir.y) > 1e-4 { t = min(t, halfH / abs(dir.y)) }
-        var tip = SIMD2<Float>(cx, cy) + dir * t
-        // не залезать на миникарту
-        let mm = minimapRect()
-        if tip.x > mm.x - 18 && tip.x < mm.x + mm.s + 18 && tip.y > mm.y - 18 && tip.y < mm.y + mm.s + 18 {
-            if mm.y < h / 2 { tip.y = mm.y + mm.s + 18 } else { tip.y = mm.y - 18 }
-        }
-        // и на ряд кнопок щупов внизу
-        if game.probesOn && tip.y > h - 150 { tip.y = h - 150 }
+        // гаснет, когда поглотитель рядом: полностью видна дальше ~350 единиц, пропадает ближе ~190
+        let zr = game.zone.r * scale
+        let fade = min(1, max(0, (len - (zr + 60 * scale)) / (160 * scale)))
+        if fade <= 0 { return }
+        let ringR: Float = 62 * scale
+        let center = SIMD2<Float>(cx, cy) + dir * ringR
         let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
-        let size: Float = 19            // крупнее, яркость та же
-        let center = tip - dir * (size * 0.3)
+        let size: Float = 15
         var ship = rgb("#cc1414")                                           // цвет корабля
-        ship.w = 0.25 * pulse
-        circle(center.x, center.y, size * 2.2, ship, soft: 1)              // свечение
-        ship.w = 0.95 * pulse
+        ship.w = 0.25 * pulse * fade
+        circle(center.x, center.y, size * 2.0, ship, soft: 1)              // свечение
+        ship.w = 0.95 * pulse * fade
         arrow(center.x, center.y, size, angle: ang, ship)
     }
 
