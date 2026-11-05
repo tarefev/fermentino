@@ -237,12 +237,12 @@ struct SceneBuilder {
             }
             guard s < slots.count else { continue }
             let a = host.ang + slots[s]
-            // рывок пустого щупа по нажатию кнопки: вытянулся и вернулся
             var bump: Float = 0
             if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            let r1 = host.r * scale + 12 + 12 * bump
-            col.w = 0.6 + 0.4 * bump
-            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 2 * bump, col)   // без полосок: только точка на конце
+            let r1 = host.r * scale + 12
+            col.w = 0.6 + 0.3 * bump
+            // рывок = шарик на месте чуть вырос и вернулся, без вылета наружу
+            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 1.3 * bump, col)
         }
     }
 
