@@ -813,6 +813,70 @@ final class Game {
         if let dex = round.dust?.explode { burst(type: BodyType.dust, ex: dex, dt: dt) }
     }
 
+    // MARK: - Деление больших комков пыли
+
+    private var splitTick = 0
+    private var statsSplits = 0
+
+    /// Сцепленный комок свободной пыли больше порога делится пополам: случайная линия через центр масс,
+    /// половины получают равные противоположные скорости — расходятся двумя кусками, а не пылью.
+    private func splitBigClumps() {
+        guard let d = round.dust, let limit = d.splitAbove else { return }
+        splitTick += 1
+        if splitTick % 6 != 0 { return }                 // десять раз в секунду достаточно
+        var idx: [Int] = []
+        for o in cores.count..<count where bodies[o].type == BodyType.dust
+            && bodies[o].flags & (BodyFlag.group | BodyFlag.captured) == 0 { idx.append(o) }
+        let n = idx.count
+        if n <= limit { return }
+        var pos = [SIMD2<Float>](repeating: .zero, count: n)
+        var rad = [Float](repeating: 0, count: n)
+        for k in 0..<n { pos[k] = bodies[idx[k]].pos; rad[k] = bodies[idx[k]].r }
+        // связные компоненты по касанию
+        var parent = Array(0..<n)
+        for a in 0..<n {
+            for b in (a + 1)..<max(a + 1, n) {
+                let ddx = Game.wrapDelta(pos[b].x - pos[a].x, Game.HALF_W, K.WORLD_W)
+                let ddy = Game.wrapDelta(pos[b].y - pos[a].y, Game.HALF_H, K.WORLD_H)
+                let reach = (rad[a] + rad[b]) * d.splitLink
+                if ddx * ddx + ddy * ddy > reach * reach { continue }
+                var ra = a; while parent[ra] != ra { parent[ra] = parent[parent[ra]]; ra = parent[ra] }
+                var rb = b; while parent[rb] != rb { parent[rb] = parent[parent[rb]]; rb = parent[rb] }
+                if ra != rb { parent[ra] = rb }
+            }
+        }
+        var comps: [Int: [Int]] = [:]
+        for k in 0..<n {
+            var r = k; while parent[r] != r { r = parent[r] }
+            comps[r, default: []].append(k)
+        }
+        for (_, members) in comps where members.count > limit {
+            // комок, который только что делился или выстрелен, не трогаем
+            if members.contains(where: { bodies[idx[$0]].heat > 0 }) { continue }
+            let origin = pos[members[0]]
+            var centre = SIMD2<Float>.zero
+            var rel = [SIMD2<Float>](repeating: .zero, count: members.count)
+            for (m, k) in members.enumerated() {
+                rel[m] = SIMD2<Float>(Game.wrapDelta(pos[k].x - origin.x, Game.HALF_W, K.WORLD_W),
+                                      Game.wrapDelta(pos[k].y - origin.y, Game.HALF_H, K.WORLD_H))
+                centre += rel[m]
+            }
+            centre /= Float(members.count)
+            let theta = Float.random(in: 0..<(.pi * 2))
+            let normal = SIMD2<Float>(cos(theta), sin(theta))
+            // делим по медиане проекции на нормаль: половины равны с точностью до одного зерна
+            let order = (0..<members.count).sorted { simd_dot(rel[$0] - centre, normal) < simd_dot(rel[$1] - centre, normal) }
+            let half = members.count / 2
+            for (rank, m) in order.enumerated() {
+                let o = idx[members[m]]
+                let sign: Float = rank < half ? -1 : 1
+                bodies[o].vel += normal * (sign * d.splitSpeed)
+                bodies[o].heat = 1
+            }
+            statsSplits += 1
+        }
+    }
+
     // ---- отладочная статистика (включается переменной окружения FERM_STATS=1)
     private let statsOn = ProcessInfo.processInfo.environment["FERM_STATS"] == "1"
     private var statsT: Float = 0
@@ -841,9 +905,9 @@ final class Game {
         }
         dust.sort(); atoms.sort()
         func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
-        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
+        print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) splits=\(statsSplits) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
         statsBursts = [:]
-        statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0
+        statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0; statsSplits = 0
     }
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
@@ -931,6 +995,7 @@ final class Game {
             }
         }
         applyInstability(dt)
+        splitBigClumps()
         runSpawner(dt)
         printStats(dt)
     }
