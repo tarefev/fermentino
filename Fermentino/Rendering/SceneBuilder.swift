@@ -239,7 +239,8 @@ struct SceneBuilder {
             let a = host.ang + slots[s]
             var bump: Float = 0
             if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            let r1 = host.r * scale + 12
+            var r1 = host.r * scale + 12
+            if let pr = game.round.probes { r1 = pr.length * scale }   // там же, где встанет центр пойманного тела
             col.w = 0.6 + 0.3 * bump
             // рывок = шарик на месте чуть вырос и вернулся, без вылета наружу
             circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 1.3 * bump, col)

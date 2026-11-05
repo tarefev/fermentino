@@ -128,7 +128,7 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                 hs = mySlot;
             }
             if (hs >= 0) {
-                const float L = contact * p.holdLen;
+                const float L = p.holdLen;                    // фиксированная длина: конец щупа не зависит от размера тела
                 const float mu = mm / (A.m + B.m);
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
                 fnet += p.holdK * mu * (r - L) - p.holdDamp * mu * vn;

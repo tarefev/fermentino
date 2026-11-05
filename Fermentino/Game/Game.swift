@@ -580,7 +580,7 @@ final class Game {
         for s in 0..<holds.count where holds[s] >= 0 {
             let j = holds[s]
             let ddx = dx(bodies[j].pos.x, host.pos.x), ddy = dy(bodies[j].pos.y, host.pos.y)
-            let L = (host.r + bodies[j].r) * pr.len
+            let L = pr.length
             if hypot(ddx, ddy) > L * pr.breakStretch || bodies[j].isCaptured { releaseProbe(s) }
         }
         // защёлка: свободный инертон на длине щупа и есть свободный щуп
@@ -588,7 +588,7 @@ final class Game {
         for o in cores.count..<count where bodies[o].type == BodyType.atom {
             if bodies[o].heat > 0 || bodies[o].isCaptured || holds.contains(o) { continue }
             let ddx = dx(bodies[o].pos.x, host.pos.x), ddy = dy(bodies[o].pos.y, host.pos.y)
-            let L = (host.r + bodies[o].r) * pr.len
+            let L = pr.length
             if hypot(ddx, ddy) > L * 1.1 { continue }
             guard let s = nearestFreeProbe(dir: atan2(ddy, ddx)) else { break }
             holds[s] = o
@@ -735,7 +735,7 @@ final class Game {
         if let pr = round.probes {
             p.holdOn = 1
             p.holdK = pr.k
-            p.holdLen = pr.len
+            p.holdLen = pr.length
             p.hostSpin = pr.spin
             p.holdDamp = pr.damp
         }
