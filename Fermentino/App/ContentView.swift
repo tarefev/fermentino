@@ -287,22 +287,18 @@ private struct ProbeControls: View {
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
                     ForEach(Array(hud.probeFill.enumerated()), id: \.offset) { s, fill in
-                        // оттенок красного = щуп. Заливка снизу = сколько на щупе (стрелять нечем — пусто),
-                        // выключенный — едва виден. Тап бросает, долгое нажатие выключает / включает щуп:
-                        // пока держат, кнопка плавно перекрашивается в то состояние, в которое перейдёт.
+                        // оттенок красного = щуп. Кнопка полупрозрачная; чем больше на щупе, тем она ярче
+                        // (стрелять нечем — почти пустая), выключенный щуп — едва виден. Тап бросает, долгое
+                        // нажатие выключает / включает щуп: пока держат, кнопка плавно перекрашивается
+                        // в то состояние, в которое перейдёт.
                         let off = s < hud.probeOff.count && hud.probeOff[s]
                         let hold = s < hud.probeHold.count ? Double(hud.probeHold[s]) : 0
                         let on = off ? hold : 1 - hold          // 1 — выглядит включённой, 0 — выключенной
                         let col = probeColors[s % probeColors.count]
+                        let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : 0.06
                         Circle()
-                            .fill(col.opacity(0.12 * on))
-                            .overlay(alignment: .bottom) {
-                                Rectangle()
-                                    .fill(col.opacity(on))
-                                    .frame(height: buttonSize * CGFloat(fill))
-                            }
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(col.opacity(0.22 + 0.68 * on), lineWidth: 2))
+                            .fill(col.opacity(bright * on))
+                            .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))
                             .frame(width: buttonSize, height: buttonSize)
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
