@@ -17,6 +17,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let commandQueue: MTLCommandQueue
     private let shapeState: MTLRenderPipelineState
     private let lineState: MTLRenderPipelineState
+    private let bgState: MTLRenderPipelineState
 
     private let ringSize = 3
     private var slot = 0
@@ -61,6 +62,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         do {
             shapeState = try pipeline("shapes", "shapeVertex", "shapeFragment")
             lineState = try pipeline("lines", "lineVertex", "lineFragment")
+            bgState = try pipeline("background", "bgVertex", "bgFragment")
             let sim = try GPUSimulation(device: device, library: library, capacity: 8192)
             game = Game(sim: sim, hud: hud)
         } catch {
@@ -110,9 +112,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         var uniforms = FrameUniforms()
         uniforms.viewSize = SIMD2<Float>(Float(view.bounds.width), Float(view.bounds.height))
+        uniforms.cam = game.mainCore.pos
+        uniforms.scale = scale
+        uniforms.worldSize = K.WORLD_W
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { commandBuffer.commit(); return }
         encoder.label = "scene"
+        // фон: фактура жижи на весь экран
+        encoder.setRenderPipelineState(bgState)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         if shapeCount > 0 {
             encoder.setRenderPipelineState(shapeState)
             encoder.setVertexBuffer(sb, offset: 0, index: 0)

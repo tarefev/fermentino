@@ -83,6 +83,9 @@ typedef struct {
 
 typedef struct {
     simd_float2 viewSize;  // в точках
+    simd_float2 cam;       // мировая позиция камеры (хост)
+    float scale;           // точек на мировую единицу
+    float worldSize;       // сторона тор-мира (фон тайлится с этим периодом)
 } FrameUniforms;
 
 #endif /* ShaderTypes_h */
