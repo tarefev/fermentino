@@ -172,7 +172,6 @@ struct SceneBuilder {
         // ярче и насыщеннее прежнего: на фактурном фоне бледное пятно терялось
         circle(zp.x, zp.y, zr * 1.2, rgba(190, 105, 255, 0.40 + 0.12 * pulse), soft: 1)      // свечение
         circle(zp.x, zp.y, zr * 0.6, rgba(232, 190, 255, 0.34 + 0.10 * pulse), soft: 1)      // светлая сердцевина
-        circle(zp.x, zp.y, zr, rgba(220, 165, 255, 0.50 + 0.25 * pulse), inner: zr - 2)      // чёткая кромка
         for i in 0..<56 {
             let fi = Float(i)
             let sp = 0.25 + Float(i % 7) * 0.05, ph = fi * 1.7
