@@ -86,14 +86,21 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
         const float edge = max(fwidth(d), 0.5);
         a = 1.0 - smoothstep(-edge, edge, d);
     } else if (in.shape == 3u) {
-        // стрелка: остриё в +x локальной системы, повёрнутой на угол halfSize.x
+        // стрелка компаса: плоский клин с тупым углом наружу (+x после поворота), сторона к кораблю — дуга
+        // вокруг него. radius = полуширина, inner = высота клина, halfSize = (угол, расстояние до центра корабля)
         const float ang = in.halfSize.x;
         const float c = cos(ang), s = sin(ang);
         const float2 p = float2(c * in.local.x + s * in.local.y, -s * in.local.x + c * in.local.y);
-        const float r = in.radius;
-        const float back = -0.7 * r;                       // основание
-        const float halfW = 0.6 * r * (r - p.x) / (r - back); // полуширина в точке p.x
-        const float d = max(max(back - p.x, p.x - r), abs(p.y) - halfW);
+        const float w = in.radius, h = in.inner, ringR = in.halfSize.y;
+        // внутренняя сторона: дуга радиуса ringR с центром в корабле, проходит через начало координат;
+        // углы клина лежат на этой дуге на полуширине w
+        const float xc = sqrt(max(ringR * ringR - w * w, 0.0)) - ringR;
+        const float2 nUp = normalize(float2(w, h - xc));  // нормали двух прямых сторон, сходящихся в острие (h, 0)
+        const float2 nDn = normalize(float2(w, xc - h));
+        const float d1 = dot(p - float2(h, 0.0), nUp);
+        const float d2 = dot(p - float2(h, 0.0), nDn);
+        const float d3 = ringR - length(p - float2(-ringR, 0.0));
+        const float d = max(max(d1, d2), d3);
         const float edge = max(fwidth(d), 0.5);
         a = 1.0 - smoothstep(-edge, edge, d);
     } else if (in.shape == 2u) {

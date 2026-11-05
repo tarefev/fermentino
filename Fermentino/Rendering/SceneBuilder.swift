@@ -57,11 +57,13 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
-    private mutating func arrow(_ x: Float, _ y: Float, _ size: Float, angle: Float, _ color: SIMD4<Float>) {
+    /// Клин компаса: полуширина w, высота h, угол поворота, расстояние от его основания до центра корабля.
+    private mutating func arrow(_ x: Float, _ y: Float, halfWidth: Float, height: Float, angle: Float, ringR: Float, _ color: SIMD4<Float>) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x, y)
-        s.radius = size
-        s.halfSize = SIMD2<Float>(angle, 0)   // для стрелки: угол поворота
+        s.radius = halfWidth
+        s.inner = height
+        s.halfSize = SIMD2<Float>(angle, ringR)
         s.color = color
         s.shape = 3
         scene.shapes.append(s)
@@ -269,16 +271,16 @@ struct SceneBuilder {
         let zr = game.zone.r * scale
         let fade = min(1, max(0, (len - (zr + 60 * scale)) / (160 * scale)))
         if fade <= 0 { return }
-        let ringR: Float = 62 * scale
+        let ringR: Float = 70 * scale                                       // чуть дальше от корабля
         let center = SIMD2<Float>(cx, cy) + dir * ringR
         let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
-        let size: Float = 15
+        let halfW: Float = 20, height: Float = 9                            // плоский клин: тупой угол при острие (~118°)
         var ship = rgb("#cc1414")                                           // цвет корабля
-        ship.w = 0.25 * pulse * fade
-        circle(center.x, center.y, size * 2.0, ship, soft: 1)              // свечение
+        ship.w = 0.22 * pulse * fade
+        circle(center.x, center.y, halfW * 1.5, ship, soft: 1)             // свечение
         ship.w = 0.95 * pulse * fade
-        arrow(center.x, center.y, size, angle: ang, ship)
+        arrow(center.x, center.y, halfWidth: halfW, height: height, angle: ang, ringR: ringR, ship)
     }
 
     /// Где стоит миникарта. Широкий экран — вверху справа, как в прототипе. Телефон: с HUD — внизу
