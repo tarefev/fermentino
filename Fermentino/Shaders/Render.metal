@@ -87,7 +87,11 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
         a = 1.0 - smoothstep(-edge, edge, d);
     } else if (in.shape == 2u) {
         // звезда остриём вверх (экранный y вниз → переворачиваем)
-        const float d = sdStar5(float2(in.local.x, -in.local.y), in.radius, in.inner);
+        // поворот на угол halfSize.x (звезда крутится вместе с хостом)
+        const float sa = in.halfSize.x;
+        const float sc = cos(sa), ss = sin(sa);
+        const float2 q = float2(sc * in.local.x + ss * in.local.y, -ss * in.local.x + sc * in.local.y);
+        const float d = sdStar5(float2(q.x, -q.y), in.radius, in.inner);
         const float edge = max(fwidth(d), 0.5);
         a = 1.0 - smoothstep(-edge, edge, d);
     } else if (in.shape == 0u) {

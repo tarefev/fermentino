@@ -46,9 +46,10 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
-    private mutating func star(_ x: Float, _ y: Float, _ outer: Float, inner: Float, _ color: SIMD4<Float>) {
+    private mutating func star(_ x: Float, _ y: Float, _ outer: Float, inner: Float, _ color: SIMD4<Float>, angle: Float = 0) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x, y)
+        s.halfSize = SIMD2<Float>(angle, 0)   // для звезды: угол поворота
         s.radius = outer
         s.inner = inner / outer      // для звезды: отношение внутреннего радиуса к внешнему
         s.color = color
@@ -121,7 +122,9 @@ struct SceneBuilder {
             var glow = col; glow.w = 0.55
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             circle(p.x, p.y, r, col)
-            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a")) }   // герб: золотая звезда
+            var starAngle: Float = 0
+            if game.probesOn { starAngle = o.ang }                                   // лучи звезды смотрят вдоль щупов
+            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle) }   // герб: золотая звезда
             if n > 0 {
                 let er = max(1.2, r * 0.21)                   // 0.21 — размер электронов (меньше)
                 for k in 0..<n {
@@ -229,13 +232,16 @@ struct SceneBuilder {
                 let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
                 let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
                 col.w = 0.9
-                // три линии рядом — щуп толще одного пикселя
+                // щуп идёт от края корабля до края шара (корабль не перекрывает); три линии рядом — толщина
                 let ddx = ax - hp.x, ddy = ay - hp.y
                 let dl = max(1, simd_length(SIMD2<Float>(ddx, ddy)))
-                let nx = -ddy / dl * 0.7, ny = ddx / dl * 0.7
-                line(hp.x, hp.y, ax, ay, col)
-                line(hp.x + nx, hp.y + ny, ax + nx, ay + ny, col)
-                line(hp.x - nx, hp.y - ny, ax - nx, ay - ny, col)
+                let ux = ddx / dl, uy = ddy / dl
+                let sx = hp.x + ux * host.r * scale, sy = hp.y + uy * host.r * scale
+                let ex = ax - ux * bodies[j].r * scale, ey = ay - uy * bodies[j].r * scale
+                let nx = -uy * 0.7, ny = ux * 0.7
+                line(sx, sy, ex, ey, col)
+                line(sx + nx, sy + ny, ex + nx, ey + ny, col)
+                line(sx - nx, sy - ny, ex - nx, ey - ny, col)
                 col.w = 1
                 circle(ax, ay, bodies[j].r * scale, col)      // пойманный шар целиком в цвете своего щупа
                 continue

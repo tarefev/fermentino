@@ -131,7 +131,7 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                 const float L = contact * p.holdLen;
                 const float mu = mm / (A.m + B.m);
                 const float vn = (A.vel.x - B.vel.x) * nx + (A.vel.y - B.vel.y) * ny;
-                fnet += p.holdK * mu * (r - L) - p.BOND_DAMP * mu * vn;
+                fnet += p.holdK * mu * (r - L) - p.holdDamp * mu * vn;
                 const float phi = atan2(dy, dx);
                 const float px = -ny, py = nx;
                 const float vtB = (B.vel.x - A.vel.x) * px + (B.vel.y - A.vel.y) * py;
@@ -139,10 +139,10 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
                 if (i == 0u) {
                     const float eHost = wrapAngle(phi - (A.ang + slots[hs]));
                     tq += eHost;
-                    fB = -mu * (A.kAngle * eHost) - p.BOND_DAMP * mu * vtB;
+                    fB = -mu * (A.kAngle * eHost) - p.holdDamp * mu * vtB;
                 } else {
                     const float eHost = wrapAngle(phi + M_PI_F - (B.ang + slots[hs]));
-                    fB = -mu * (B.kAngle * eHost) - p.BOND_DAMP * mu * vtB;
+                    fB = -mu * (B.kAngle * eHost) - p.holdDamp * mu * vtB;
                 }
                 acc -= float2(px, py) * (fB / A.m);
             }

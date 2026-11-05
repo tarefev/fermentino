@@ -734,6 +734,7 @@ final class Game {
             p.holdK = pr.k
             p.holdLen = pr.len
             p.hostSpin = pr.spin
+            p.holdDamp = pr.damp
         }
         return p
     }

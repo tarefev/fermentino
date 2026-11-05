@@ -84,7 +84,8 @@ struct ProbeDef {
     var len: Float = 2.2            // длина в (rХоста + rИнертона)
     var breakStretch: Float = 3     // срыв при растяжении > len·это
     var kAngle: Float = 40000       // жёсткость угла щупа: щупы не гнутся, держат свои углы против любой толпы
-    var spin: Float = 0.5           // вращение креста щупов по часовой, рад/с игрового времени (оборот ~25 с)
+    var spin: Float = 0.5           // вращение щупов по часовой, рад/с игрового времени (оборот ~25 с)
+    var damp: Float = 45            // демпфер щупа, около критического для его жёсткостей: без дёрганья
 }
 
 /// Какие рычаги и строки HUD включены в туре.
@@ -138,7 +139,7 @@ enum Rounds {
             id: "flight", win: .reachZone,
             spawn: [],
             elements: [
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 4, kAngle: 300, control: "player", emblem: "ussr"),
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -155,7 +156,7 @@ enum Rounds {
             dust: DustDef(n: 200, rMin: 2, rMax: 2, density: 100, minHostDist: 400, avoidZone: true,
                           explode: ExplodeDef(max: 9, r: 35, speed: 4000, burst: 4, rate: 0.95, rateRef: 12)),  // тяжёлые, редкие, вдали от хоста; ком ≥9 соседей взрывается, нечасто
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            probes: ProbeDef()              // четыре щупа хоста (valence: 4)
+            probes: ProbeDef()              // пять щупов хоста, по лучам звезды
         ),
         RoundDef(
             id: "star", win: .star,

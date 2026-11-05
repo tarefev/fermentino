@@ -259,6 +259,7 @@ private struct ProbeControls: View {
         Color(red: 0x16 / 255, green: 0xf0 / 255, blue: 0xe6 / 255),
         Color(red: 1, green: 0x2d / 255, blue: 0xb0 / 255),
         Color(red: 0x7d / 255, green: 0xf9 / 255, blue: 0xc5 / 255),
+        Color(red: 1, green: 0x8a / 255, blue: 0x3a / 255),
     ]
 
     var body: some View {
@@ -295,7 +296,7 @@ private struct ProbeControls: View {
                 .buttonStyle(.plain)
             }
             .padding(.bottom, 14)
-            // вариант А: четыре кнопки щупов в ряд по всей ширине
+            // вариант А: кнопки щупов в ряд по всей ширине, по одной на щуп
             if hud.controlMode == .buttons {
                 HStack(spacing: 0) {
                     ForEach(Array(hud.probeFilled.enumerated()), id: \.offset) { s, filled in
@@ -305,7 +306,7 @@ private struct ProbeControls: View {
                             Circle()
                                 .fill(probeColors[s % probeColors.count].opacity(filled ? 0.9 : 0.15))
                                 .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.8), lineWidth: 2))
-                                .frame(width: 66, height: 66)
+                                .frame(width: 60, height: 60)
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                         }
