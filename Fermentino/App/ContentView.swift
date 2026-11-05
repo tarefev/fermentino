@@ -49,6 +49,8 @@ struct ContentView: View {
                 .padding(.vertical, 6)
             }
             if session.hud.probesOn {
+                ProbeLabels(hud: session.hud)
+                    .ignoresSafeArea()
                 ProbeControls(hud: session.hud, session: session)
             }
             IntroView(hud: session.hud)
@@ -248,19 +250,30 @@ private struct MoleculeIcon: View {
     }
 }
 
+// MARK: - Цифры у концов щупов
+
+private struct ProbeLabels: View {
+    let hud: HUDModel
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(hud.probeLabels.enumerated()), id: \.offset) { s, p in
+                Text("\(s + 1)")
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(hudText.opacity(s < hud.probeFilled.count && hud.probeFilled[s] ? 1 : 0.5))
+                    .shadow(color: .black, radius: 2)
+                    .position(p)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Управление щупами (тест двух вариантов: А — кнопки, Б — свайп)
 
 private struct ProbeControls: View {
     let hud: HUDModel
     let session: GameSession
-
-    private let probeColors: [Color] = [
-        Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255),
-        Color(red: 0x16 / 255, green: 0xf0 / 255, blue: 0xe6 / 255),
-        Color(red: 1, green: 0x2d / 255, blue: 0xb0 / 255),
-        Color(red: 0x7d / 255, green: 0xf9 / 255, blue: 0xc5 / 255),
-        Color(red: 1, green: 0x8a / 255, blue: 0x3a / 255),
-    ]
 
     private let buttonSize: CGFloat = 54
 
@@ -289,10 +302,13 @@ private struct ProbeControls: View {
                         Button {
                             session.throwProbe(s)
                         } label: {
-                            Circle()
-                                .fill(probeColors[s % probeColors.count].opacity(filled ? 0.9 : 0.15))
-                                .overlay(Circle().stroke(probeColors[s % probeColors.count].opacity(0.8), lineWidth: 2))
+                            // один цвет на все щупы; какой щуп — по цифре. Занятый — светлая заливка, пустой — тёмная
+                            Text("\(s + 1)")
+                                .font(.system(size: 24, weight: .bold, design: .monospaced))
+                                .foregroundStyle(filled ? Color(red: 0x0a / 255, green: 0x0e / 255, blue: 0x1a / 255) : hudText.opacity(0.55))
                                 .frame(width: buttonSize, height: buttonSize)
+                                .background((filled ? hudText.opacity(0.92) : Color.black.opacity(0.35)), in: Circle())
+                                .overlay(Circle().stroke(hudText.opacity(filled ? 0.95 : 0.4), lineWidth: 2))
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                         }

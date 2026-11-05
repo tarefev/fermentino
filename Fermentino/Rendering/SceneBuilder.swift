@@ -13,6 +13,7 @@ struct RenderScene {
     var shapes: [ShapeInstance] = []
     var lines: [LineVertex] = []
     var zoneLabel: CGPoint? = nil
+    var probeLabels: [CGPoint] = []
 }
 
 struct SceneBuilder {
@@ -219,42 +220,38 @@ struct SceneBuilder {
         return scene
     }
 
-    /// Щупы хоста без линий: пойманное тело залито цветом щупа; у свободного — точка на месте конца щупа.
-    /// Цвет щупа совпадает с цветом его кнопки внизу экрана.
+    /// Щупы хоста без линий и без цветов: пойманное тело — обычный «свой» шар, у свободного щупа точка.
+    /// Какой щуп какой — по цифре: она стоит сразу за концом щупа и повторяется на кнопке.
     private mutating func buildProbes(cam: SIMD2<Float>) {
         if !game.probesOn { return }
         let bodies = game.bodies
         let host = bodies[0]
         let hp = screen(host.pos.x, host.pos.y, cam: cam)
         let slots = game.cores[0].slots
+        guard let pr = game.round.probes else { return }
+        let tipR = pr.length * scale
         for s in 0..<game.holds.count {
-            var col = K.PROBE_COLORS[s % K.PROBE_COLORS.count]
-            let j = game.holds[s]
-            if j >= 0 {
-                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
-                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
-                col.w = 1
-                circle(ax, ay, bodies[j].r * scale, col)      // пойманный шар целиком в цвете своего щупа
-                continue
-            }
             guard s < slots.count else { continue }
             let a = host.ang + slots[s]
+            // цифра — на луче щупа, сразу за шаром
+            let labelR = tipR + 17
+            scene.probeLabels.append(CGPoint(x: CGFloat(hp.x + cos(a) * labelR), y: CGFloat(hp.y + sin(a) * labelR)))
+            if game.holds[s] >= 0 { continue }          // пойманный шар рисуется как обычный «свой»
+            var col = rgb("#cfe6ff")
+            // рывок пустого щупа по нажатию кнопки
             var bump: Float = 0
             if s < game.probePulse.count { bump = sin(game.probePulse[s] * .pi) }
-            var r1 = host.r * scale + 12
-            if let pr = game.round.probes { r1 = pr.length * scale }   // там же, где встанет центр пойманного тела
             // перезарядка после выстрела: вместо точки тусклое кольцо, которое стягивается к точке
             var reload: Float = 0
-            if s < game.probeReload.count, let pr = game.round.probes, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
+            if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
             if reload > 0 {
                 col.w = 0.45
                 let rr = 2.5 + 6 * reload
-                circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, rr, col, inner: rr - 1.2)
+                circle(hp.x + cos(a) * tipR, hp.y + sin(a) * tipR, rr, col, inner: rr - 1.2)
                 continue
             }
-            col.w = 0.6 + 0.3 * bump
-            // рывок = шарик на месте чуть вырос и вернулся, без вылета наружу
-            circle(hp.x + cos(a) * r1, hp.y + sin(a) * r1, 2 + 1.3 * bump, col)
+            col.w = 0.55 + 0.3 * bump
+            circle(hp.x + cos(a) * tipR, hp.y + sin(a) * tipR, 2 + 1.3 * bump, col)
         }
     }
 
