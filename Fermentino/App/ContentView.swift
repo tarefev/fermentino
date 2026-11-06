@@ -301,6 +301,15 @@ private struct ProbeControls: View {
                         Circle()
                             .fill(col.opacity(bright * on))
                             .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))
+                            // кнопка по направлению: стрелка показывает, куда она стреляет
+                            .overlay {
+                                if s < hud.probeArrows.count {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundStyle(col.opacity(0.3 + 0.65 * on))
+                                        .rotationEffect(.radians(Double(hud.probeArrows[s]) + .pi / 2))
+                                }
+                            }
                             .frame(width: buttonSize, height: buttonSize)
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())

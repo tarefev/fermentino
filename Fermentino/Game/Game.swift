@@ -1271,6 +1271,7 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
+        set(&h.probeArrows, byDirection ? cores[0].slots : [])
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)

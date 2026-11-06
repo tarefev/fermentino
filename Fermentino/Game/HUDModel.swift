@@ -49,6 +49,7 @@ final class HUDModel {
     var probesOn = false
     var probeFill: [Float] = []          // 0…1: заполненность щупа; 0 — стрелять нечем (перезарядка или выключен)
     var probeOff: [Bool] = []            // щуп выключен долгим нажатием
+    var probeArrows: [Float] = []        // рад: куда стреляет кнопка (режим «по направлению»); пусто — стрелок нет
     var probeHold: [Float] = []          // 0…1: насколько дожато долгое нажатие на кнопку щупа
     var controlMode: ControlMode = .buttons
     var narration = ""
