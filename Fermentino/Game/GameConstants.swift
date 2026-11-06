@@ -71,7 +71,7 @@ enum K {
     // корабль: в начале тура ржавый и тёмный, потом «включается» — светлеет и начинает светиться
     // (было: красный корпус #cc1414 и золотая звезда #ffd60a — выходил флаг Вьетнама)
     static let COL_HULL = rgb("#84472a")          // ржавчина
-    static let COL_HULL_ON = rgb("#ffe0b8")       // включён: тот же тёплый тон, только светлый
+    static let COL_HULL_ON = rgb("#efe6d6")       // включён: белая эмаль (вариант 1 с листа docs/ship-colors.png)
     static let COL_EMBLEM = rgb("#d81a1a")        // звезда
     static let COL_RIVET = rgb("#ffd60a")         // нашлёпки на борту
     static let SHIP_ON_DELAY: Float = 1.2         // сколько секунд корабль стоит ржавым
