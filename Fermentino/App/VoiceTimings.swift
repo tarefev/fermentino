@@ -23,5 +23,12 @@ enum VoiceTimings {
                             13.49, 13.83, 14.67, 15.57,
                             16.75, 17.19, 17.64,
                             19.10, 19.50],
+        // Finished? No. Does it matter? No. Problems are solved in order of arrival, Yurik. Lower him!
+        // (дубль Buduk_58, ритм записи сохранён; под голосом — наливание из Buduk_59)
+        "voice_prologue2": [1.80, 2.90,
+                            4.46, 4.72, 4.86, 5.82,
+                            7.36, 8.24, 8.84, 9.80, 10.38, 10.95, 11.67,
+                            12.64,
+                            15.58, 16.05],
     ]
 }

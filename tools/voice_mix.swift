@@ -36,6 +36,10 @@ for i in 0..<sfx.count {
     let i0 = Int(pos), fr = Float(pos - Double(i0))
     if i0 + 1 < src.count { sfx[i] = src[i0] * (1 - fr) + src[i0 + 1] * fr }
 }
+// SFXLIMIT=0.12: мягко срезать редкие резкие пики звука выше этого уровня, чтобы один щелчок не задавал громкость всему
+if let lim = Float(ProcessInfo.processInfo.environment["SFXLIMIT"] ?? "") {
+    for i in 0..<sfx.count { sfx[i] = tanh(sfx[i] / lim) * lim }
+}
 // громкость: пик звука относительно пика реплики
 let basePeak = base.map { abs($0) }.max() ?? 1, sfxPeak = sfx.map { abs($0) }.max() ?? 1
 let g = basePeak / max(sfxPeak, 1e-6) * Float(pow(10, gainDb / 20))

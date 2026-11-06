@@ -181,7 +181,14 @@ func list(_ k: String) -> [Double]? { ProcessInfo.processInfo.environment[k]?.sp
 let targetDb: [Double] = list("PATTERN") ?? [-5, 2.5, -0.5, 1, 3, -4, -2, -4, -6]
 let pauseAfter: [Double] = list("PAUSES") ?? [0.30, 0.45, 0.18, 0.18, 0.65, 0.28, 0.45, 0.85, 0]
 var edit: [Float] = []
-if segs.count == targetDb.count {
+// KEEP=1: ритм записи не трогаем — только голос; START (с) — откуда начать, чтобы срезать тишину в начале
+if ProcessInfo.processInfo.environment["KEEP"] == "1" {
+    let start = Int((Double(ProcessInfo.processInfo.environment["START"] ?? "") ?? 0) * sr) + shift
+    let end = min(voiced.count, (segs.last?.1 ?? voiced.count) + Int(sr * 0.35))
+    edit = Array(voiced[max(0, start)..<end])
+    let f = Int(sr * 0.05)
+    for i in 0..<min(f, edit.count) { edit[i] *= Float(i) / Float(f); edit[edit.count - 1 - i] *= Float(i) / Float(f) }
+} else if segs.count == targetDb.count {
     let levels = segs.map { rmsDb(voiced[$0.0..<$0.1]) }
     let mean = levels.reduce(0, +) / Double(levels.count)
     let fade = Int(sr * 0.012), lead = ProcessInfo.processInfo.environment["SEGS"] != nil ? 0 : Int(sr * 0.06)   // ручные куски уже с полями
