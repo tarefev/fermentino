@@ -153,7 +153,7 @@ struct SceneBuilder {
                 // по стрелке средней кнопки; поворачивается только вместе со шкалой
                 starAngle = game.arrowAngle(game.held.count / 2) + .pi / 2
             }
-            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle) }   // герб: золотая звезда
+            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, K.COL_EMBLEM, angle: starAngle) }   // герб: красная звезда
             if c.main && game.byDirection {
                 // указатель: золотая метка на борту изнутри. Наружный край — дуга по радиусу корабля (торчит
                 // на волосок), внутренний — дуга чуть меньшего круга, бока прямые, без скруглений.
@@ -406,8 +406,8 @@ struct SceneBuilder {
             let px = mmc + co.x, py = mmm + co.y
             circle(px, py, 2.2, game.cores[c].col)
         }
-        // корабль в центре: красный кружок без обводки, внутри золотая звёздочка
+        // корабль в центре: кружок цвета корпуса без обводки, внутри звёздочка герба
         circle(mmc, mmm, 5, game.cores[0].col)
-        star(mmc, mmm, 3.6, inner: 1.5, rgb("#ffd60a"))
+        star(mmc, mmm, 3.6, inner: 1.5, K.COL_EMBLEM)
     }
 }

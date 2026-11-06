@@ -68,6 +68,10 @@ enum K {
     static let COL_STAR_BRIGHT = rgb("#3a4d74")
     static let COL_ATOM = rgb("#8aa0bd")
     static let COL_MINE = rgb("#3a9bff")
+    // проба 06.11: корабль как капсула на кадрах пролога — ржавая сталь и красная звезда
+    // (было: красный корпус #cc1414 и золотая звезда #ffd60a — выходил флаг Вьетнама)
+    static let COL_HULL = rgb("#a9744f")
+    static let COL_EMBLEM = rgb("#d81a1a")
     static let COL_ANCHOR = rgb("#7a6a5c")
     static let COL_ANCHOR_EDGE = rgb("#b8a48f")
     static let RGB_HOT = SIMD4<Float>(235 / 255, 80 / 255, 60 / 255, 1)

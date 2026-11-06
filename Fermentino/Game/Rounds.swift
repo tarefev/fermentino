@@ -167,7 +167,7 @@ enum Rounds {
             spawn: [],
             elements: [
                 // пять щупалец по лучам звезды: пять одинаковых ядрышек уравновешивают друг друга, корабль не болтает
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -197,7 +197,7 @@ enum Rounds {
             id: "star", win: .star,
             spawn: [("trigen", 2), ("capsor", 5)],
             elements: [
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 3, kAngle: 300, control: "player", emblem: "ussr"),
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, valence: 3, kAngle: 300, control: "player", emblem: "ussr"),
                 "trigen": ElementDef(name: "trigen", symbol: "Tg", color: rgb("#ff2db0"), r: 10, mass: 2800, angles: [0, 120, 240], kAngle: 2000),
                 "capsor": ElementDef(name: "capsor", symbol: "Cp", color: rgb("#16f0e6"), r: 7, mass: 1120, angles: [0]),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
@@ -216,7 +216,7 @@ enum Rounds {
             id: "benzene", win: .benzene,
             spawn: [("trigen", 10), ("capsor", 10)],
             elements: [
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, valence: 3, kAngle: 300, control: "player", emblem: "ussr"),
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, valence: 3, kAngle: 300, control: "player", emblem: "ussr"),
                 "trigen": ElementDef(name: "trigen", symbol: "Tg", color: rgb("#ff2db0"), r: 10, mass: 1000, angles: [0, 120, 240], kAngle: 4000),
                 "capsor": ElementDef(name: "capsor", symbol: "Cp", color: rgb("#16f0e6"), r: 7, mass: 500, angles: [0]),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 2000,
