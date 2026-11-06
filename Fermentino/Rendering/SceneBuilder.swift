@@ -417,7 +417,7 @@ struct SceneBuilder {
     }
 
     /// Стрелку обводят белым «мелом»: треугольник вокруг клина рисуется тремя штрихами (чик-чик-чик),
-    /// пропадает и рисуется второй раз, чуть по-другому, потом гаснет. Штрих — цепочка мелких точек
+    /// пропадает и рисуется снова, чуть по-другому, — всего три раза, после третьего гаснет. Штрих — цепочка мелких точек
     /// с неровной яркостью, концы перехлёстывают углы, как от руки. Обводка едет вместе со стрелкой.
     private mutating func chalkOutline(center: SIMD2<Float>, dir: SIMD2<Float>, halfW: Float, height: Float, t: Float) {
         let perp = SIMD2<Float>(-dir.y, dir.x)
@@ -425,8 +425,8 @@ struct SceneBuilder {
         let a = SIMD2<Float>(-11, -(halfW + 13)), b = SIMD2<Float>(height + 13, 0), c = SIMD2<Float>(-11, halfW + 13)
         let sides = [(a, b), (b, c), (c, a)]
         let stroke: Float = 0.10, gap: Float = 0.03
-        // два прохода: когда начинается, до какого момента виден целиком, за сколько гаснет
-        let passes: [(start: Float, hold: Float, fade: Float)] = [(0, 0.60, 0.15), (0.80, 1.90, 0.40)]
+        // три прохода: когда начинается, до какого момента виден целиком, за сколько гаснет
+        let passes: [(start: Float, hold: Float, fade: Float)] = [(0, 0.60, 0.15), (0.80, 1.40, 0.15), (1.60, 2.70, 0.40)]
         for (pi, pass) in passes.enumerated() {
             let lt = t - pass.start
             if lt < 0 { continue }

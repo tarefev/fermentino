@@ -190,7 +190,7 @@ final class Game {
     /// Обводка стрелки к поглотителю «мелом»: секунды с её начала, −1 — не идёт. Один раз за тур.
     private(set) var chalkT: Float = -1
     private var chalkDone = false
-    static let chalkLife: Float = 2.3
+    static let chalkLife: Float = 3.1
     private var narrationShownAt: Float = -1
     private var said: Set<String> = []
     private var elements: [String: ElementDef] = [:]
