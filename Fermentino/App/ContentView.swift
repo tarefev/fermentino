@@ -250,6 +250,67 @@ private struct MoleculeIcon: View {
 
 // MARK: - Управление щупами (тест двух вариантов: А — кнопки, Б — свайп)
 
+/// Прицельная шкала над кнопками, как в бинокле: лента рисок едет под пальцем, посередине неподвижное
+/// перекрестие. Тянешь ленту — поворачивается звезда секторов (все стрелки разом). Круг замкнут, краёв нет.
+private struct AimTape: View {
+    @Binding var turn: Double                 // градусы, −180…180
+    let onChange: (Double) -> Void
+    @State private var dragStart: Double? = nil
+    private let ptPerDeg: CGFloat = 2         // на экране видно около 150° шкалы
+    private let stepDeg = 6.0                 // малая риска; каждая пятая (30°) — большая
+
+    var body: some View {
+        Canvas { ctx, size in
+            let mid = size.width / 2, base = size.height - 10
+            // линия шкалы, гаснет к краям
+            var line = Path()
+            line.move(to: CGPoint(x: 0, y: base)); line.addLine(to: CGPoint(x: size.width, y: base))
+            ctx.stroke(line, with: .linearGradient(
+                Gradient(colors: [.clear, hudText.opacity(0.35), .clear]),
+                startPoint: CGPoint(x: 0, y: base), endPoint: CGPoint(x: size.width, y: base)), lineWidth: 1)
+            // риски
+            let span = Double(mid / ptPerDeg)
+            let first = Int(((-turn - span) / stepDeg).rounded(.down)), last = Int(((-turn + span) / stepDeg).rounded(.up))
+            for k in first...last {
+                let x = mid + CGFloat(Double(k) * stepDeg + turn) * ptPerDeg
+                let edge = Double(max(0, 1 - abs(x - mid) / mid))
+                let major = k % 5 == 0, home = k % 60 == 0      // home — исходное положение звезды
+                var h: CGFloat = 6
+                if major { h = 12 }
+                if home { h = 18 }
+                var tick = Path()
+                tick.move(to: CGPoint(x: x, y: base)); tick.addLine(to: CGPoint(x: x, y: base - h))
+                var alpha = 0.4
+                if major { alpha = 0.7 }
+                if home { alpha = 1 }
+                ctx.stroke(tick, with: .color(hudText.opacity(alpha * edge)), lineWidth: home ? 1.5 : 1)
+            }
+            // перекрестие посередине: неподвижное, в цвет корабля
+            let red = Color(red: 0xff / 255, green: 0x3b / 255, blue: 0x30 / 255)
+            var cross = Path()
+            cross.move(to: CGPoint(x: mid, y: 0)); cross.addLine(to: CGPoint(x: mid, y: size.height))
+            cross.move(to: CGPoint(x: mid - 9, y: base - 9)); cross.addLine(to: CGPoint(x: mid - 3, y: base - 9))
+            cross.move(to: CGPoint(x: mid + 3, y: base - 9)); cross.addLine(to: CGPoint(x: mid + 9, y: base - 9))
+            ctx.stroke(cross, with: .color(red.opacity(0.95)), lineWidth: 1.5)
+        }
+        .frame(height: 40)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { g in
+                    if dragStart == nil { dragStart = turn }
+                    let raw = (dragStart ?? turn) + Double(g.translation.width / ptPerDeg)
+                    var v = (raw + 180).truncatingRemainder(dividingBy: 360)
+                    if v < 0 { v += 360 }
+                    v -= 180
+                    turn = v
+                    onChange(v)
+                }
+                .onEnded { _ in dragStart = nil }
+        )
+    }
+}
+
 private struct ProbeControls: View {
     let hud: HUDModel
     let session: GameSession
@@ -286,11 +347,9 @@ private struct ProbeControls: View {
             Spacer()
             // ползунок над кнопками: крутит воображаемую звезду секторов — все стрелки разом
             if hud.controlMode == .buttons && !hud.probeArrows.isEmpty {
-                Slider(value: $starTurn, in: -180...180)   // полный круг: любая стрелка может смотреть куда угодно
-                    .tint(hudText.opacity(0.45))
+                AimTape(turn: $starTurn) { session.setStarTurn(degrees: $0) }
                     .padding(.horizontal, 22)
-                    .padding(.bottom, 10)
-                    .onChange(of: starTurn) { _, v in session.setStarTurn(degrees: v) }
+                    .padding(.bottom, 8)
             }
             // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
             HStack(spacing: 0) {
