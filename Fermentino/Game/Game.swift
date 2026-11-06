@@ -103,7 +103,7 @@ final class Game {
     /// Положение щупа s вдоль ряда кнопок: целое — ровно на стрелке кнопки, дробное — между соседними.
     private func sectorPos(_ s: Int) -> Float {
         guard let pr = round.probes, pr.arrowStep != 0 else { return Float(s) }
-        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase) / pr.arrowStep
+        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase - pr.sectorTilt) / pr.arrowStep
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {
