@@ -74,6 +74,7 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
 fragment float4 shapeFragment(ShapeOut in [[stage_in]])
 {
     float a = 1.0;
+    float3 rgb = in.color.rgb;
     if (in.shape == 4u) {
         // правильный многоугольник вершиной вверх: максимум по нормалям сторон
         const int n = int(in.inner);
@@ -112,6 +113,12 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
         const float d = sdStar5(float2(q.x, -q.y), in.radius, in.inner);
         const float edge = max(fwidth(d), 0.5);
         a = 1.0 - smoothstep(-edge, edge, d);
+        // небольшой градиент вдоль главного луча (halfSize.y — сила): кончик луча своего цвета,
+        // к противоположной стороне звезда уходит в тёмно-оранжевый — так видно, куда она смотрит
+        if (in.halfSize.y > 0.0) {
+            const float back = saturate(0.5 + 0.5 * q.y / in.radius);     // 0 у кончика главного луча, 1 сзади
+            rgb = mix(rgb, rgb * float3(0.78, 0.42, 0.25), in.halfSize.y * back);
+        }
     } else if (in.shape == 0u) {
         const float d = length(in.local);
         const float edge = max(fwidth(d), 0.5);
@@ -125,7 +132,7 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
     }
     const float alpha = in.color.a * a;
     if (alpha <= 0.001) discard_fragment();
-    return float4(in.color.rgb * alpha, alpha);
+    return float4(rgb * alpha, alpha);
 }
 
 // MARK: - Фон: фактура жижи, привязанная к миру (движение читается по ней)

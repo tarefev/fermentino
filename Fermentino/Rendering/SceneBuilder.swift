@@ -46,10 +46,10 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
-    private mutating func star(_ x: Float, _ y: Float, _ outer: Float, inner: Float, _ color: SIMD4<Float>, angle: Float = 0) {
+    private mutating func star(_ x: Float, _ y: Float, _ outer: Float, inner: Float, _ color: SIMD4<Float>, angle: Float = 0, gradient: Float = 0) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x, y)
-        s.halfSize = SIMD2<Float>(angle, 0)   // для звезды: угол поворота
+        s.halfSize = SIMD2<Float>(angle, gradient)   // для звезды: угол поворота и сила градиента вдоль главного луча
         s.radius = outer
         s.inner = inner / outer      // для звезды: отношение внутреннего радиуса к внешнему
         s.color = color
@@ -125,8 +125,15 @@ struct SceneBuilder {
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             circle(p.x, p.y, r, col)
             var starAngle: Float = 0
+            var starGradient: Float = 0
             if game.probesOn { starAngle = o.ang }                                   // лучи звезды смотрят вдоль щупов
-            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle) }   // герб: золотая звезда
+            if game.byDirection {
+                // по направлению звезда не вращается: её лучи смотрят туда же, куда стрелки кнопок, главный луч —
+                // по стрелке средней кнопки (риска на шкале); поворачивается только вместе со шкалой
+                starAngle = game.arrowAngle(game.held.count / 2) + .pi / 2
+                starGradient = 0.85
+            }
+            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle, gradient: starGradient) }   // герб: золотая звезда
             if n > 0 {
                 let er = max(1.2, r * 0.21)                   // 0.21 — размер электронов (меньше)
                 for k in 0..<n {
