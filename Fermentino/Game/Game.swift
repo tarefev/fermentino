@@ -365,6 +365,7 @@ final class Game {
             if let pr = round.probes, s < held.count, !physOff(s) {
                 if held[s].isEmpty { pm = pr.probeMass }
                 else if held[s].count < pr.maxClump { pm = pr.probeMass * pr.fillingGravity }
+                if Lab.tipAlways || pr.tipAlways { pm = pr.probeMass }   // «заряд»: щупальце тянет всегда, его гасят пойманные камни
             }
             sim.probeMass[s] = pm
         }
@@ -1088,7 +1089,7 @@ final class Game {
     /// Сцепленный комок свободной пыли больше порога делится пополам: случайная линия через центр масс,
     /// половины получают равные противоположные скорости — расходятся двумя кусками, а не пылью.
     private func splitBigClumps() {
-        guard let d = round.dust, let limit = d.splitAbove else { return }
+        guard let d = round.dust, let limit = d.splitAbove, !Lab.noSplit else { return }
         splitTick += 1
         if splitTick % 6 != 0 { return }                 // десять раз в секунду достаточно
         var idx: [Int] = []
@@ -1219,10 +1220,57 @@ final class Game {
         let pairs = max(1, count * (count - 1) / 2)
         let st = Double(max(1, statsSteps))
         print("PROF t=\(Int(roundT)) bodies=\(count) frames=\(statsFrames) gpuWall=\(String(format: "%.1f", statsGpuMs / st)) gpuExec=\(String(format: "%.1f", statsGpuExecMs / st)) gpuQueued=\(String(format: "%.1f", statsGpuQueuedMs / st)) inCut=\(inCut * 100 / pairs)% near200=\(near) touching=\(touching) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)")
+        printFieldStats()
         statsGpuExecMs = 0; statsGpuQueuedMs = 0
         statsBursts = [:]
         statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0; statsSplits = 0; statsMaxClump = 0
     }
+
+    /// Отладка (FERM_STATS=1), раз в 5 с: как камни распределены по комкам и по расстоянию от корабля.
+    /// Комок — свободные зёрна, связанные касанием (как в splitBigClumps).
+    private func printFieldStats() {
+        fieldStatsTick += 1
+        if fieldStatsTick % 5 != 0 { return }
+        guard let d = round.dust else { return }
+        var idx: [Int] = []
+        for o in cores.count..<count where bodies[o].type == BodyType.dust
+            && bodies[o].flags & (BodyFlag.group | BodyFlag.captured) == 0 { idx.append(o) }
+        let n = idx.count
+        var parent = Array(0..<n)
+        for a in 0..<n {
+            for b in (a + 1)..<max(a + 1, n) {
+                let ddx = dx(bodies[idx[b]].pos.x, bodies[idx[a]].pos.x), ddy = dy(bodies[idx[b]].pos.y, bodies[idx[a]].pos.y)
+                let reach = (bodies[idx[a]].r + bodies[idx[b]].r) * d.splitLink
+                if ddx * ddx + ddy * ddy > reach * reach { continue }
+                var ra = a; while parent[ra] != ra { parent[ra] = parent[parent[ra]]; ra = parent[ra] }
+                var rb = b; while parent[rb] != rb { parent[rb] = parent[parent[rb]]; rb = parent[rb] }
+                if ra != rb { parent[ra] = rb }
+            }
+        }
+        var comps: [Int: [Int]] = [:]
+        for k in 0..<n { var r = k; while parent[r] != r { r = parent[r] }; comps[r, default: []].append(k) }
+        let host = bodies[0]
+        // размеры комков: сколько комков каждого класса и сколько зёрен в них
+        var cls = [Int](repeating: 0, count: 5), grains = [Int](repeating: 0, count: 5)
+        // комки по расстоянию центра от корабля: штук и зёрен в поясах 0–60, 60–200, 200–400, дальше
+        var beltC = [Int](repeating: 0, count: 4), beltG = [Int](repeating: 0, count: 4)
+        var biggest = 0
+        for (_, m) in comps {
+            let c = m.count
+            biggest = max(biggest, c)
+            var k = 4
+            if c == 1 { k = 0 } else if c <= 5 { k = 1 } else if c <= 12 { k = 2 } else if c <= 24 { k = 3 }
+            cls[k] += 1; grains[k] += c
+            let o = idx[m[0]]
+            let dist = hypot(dx(bodies[o].pos.x, host.pos.x), dy(bodies[o].pos.y, host.pos.y))
+            var b = 3
+            if dist < 60 { b = 0 } else if dist < 200 { b = 1 } else if dist < 400 { b = 2 }
+            beltC[b] += 1; beltG[b] += c
+        }
+        print("FIELD t=\(Int(roundT)) free=\(n) clumps=\(comps.count) biggest=\(biggest) | by size 1:\(cls[0]) 2-5:\(cls[1])/\(grains[1]) 6-12:\(cls[2])/\(grains[2]) 13-24:\(cls[3])/\(grains[3]) 25+:\(cls[4])/\(grains[4]) | by dist clumps/grains <60:\(beltC[0])/\(beltG[0]) 60-200:\(beltC[1])/\(beltG[1]) 200-400:\(beltC[2])/\(beltG[2]) far:\(beltC[3])/\(beltG[3]) | held=\(held.map { $0.count }) hostV=\(Int(simd_length(host.vel)))")
+    }
+    private var fieldStatsTick = 0
+    private var labSeed: UInt32 = 0
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
@@ -1260,13 +1308,22 @@ final class Game {
         p.worldSize = SIMD2<Float>(K.WORLD_W, K.WORLD_H)
         p.zonePos = SIMD2<Float>(zone.x, zone.y)
         p.zoneMass = zone.m
+        // пробы физики камней (отладочные переключатели, см. Lab): по умолчанию всё как было
+        p.rockForce = Lab.rockForce ?? round.dust?.rockForce ?? 1
+        if Lab.temp > 0 {
+            // толчок за подшаг: за целый шаг набегает sqrt(2·γ·σ²·Δt); затравка в шаге одна, поэтому делим на число подшагов
+            let n = Float(round.substeps ?? K.SUBSTEPS)
+            p.thermalKick = (2 * p.VISCOSITY * Lab.temp * Lab.temp * hSub * n).squareRoot() / n
+            labSeed &+= 1
+            p.seed = labSeed
+        }
         if let pr = round.probes {
             p.holdOn = 1
             p.holdK = pr.k
             p.holdLen = pr.length
             p.hostSpin = pr.spin
             p.holdDamp = pr.damp
-            p.heldGravity = pr.heldGravity
+            p.heldGravity = Lab.heldGravity ?? pr.heldGravity
             p.hostGravity = pr.hostGravity
             p.memberPull = pr.memberPull
         }
@@ -1611,4 +1668,21 @@ final class Game {
             setup()
         }
     }
+}
+
+
+/// Пробы физики камней: переменные окружения при отладочном запуске перекрывают настройки тура.
+/// Без них действует то, что записано в туре.
+enum Lab {
+    private static func f(_ k: String) -> Float? { Float(ProcessInfo.processInfo.environment[k] ?? "") }
+    /// FERM_ROCKFORCE: множитель силы между двумя свободными камнями (1 — притяжение; −1 — такое же по силе отталкивание); nil — как в туре.
+    static let rockForce: Float? = f("FERM_ROCKFORCE")
+    /// FERM_TEMP: тепловая скорость камня массы 150, ед/с (0 — среда холодная).
+    static let temp: Float = f("FERM_TEMP") ?? 0
+    /// FERM_HELDG: множитель «заряда» камня на щупальце (по умолчанию как в туре).
+    static let heldGravity: Float? = f("FERM_HELDG")
+    /// FERM_TIPALWAYS=1: конец щупальца притягивает всегда, даже с полным комком.
+    static let tipAlways = ProcessInfo.processInfo.environment["FERM_TIPALWAYS"] == "1"
+    /// FERM_NOSPLIT=1: большие комки не делятся.
+    static let noSplit = ProcessInfo.processInfo.environment["FERM_NOSPLIT"] == "1"
 }

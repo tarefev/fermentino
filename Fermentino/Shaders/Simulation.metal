@@ -109,7 +109,13 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             if ((A.flags & FLAG_GROUP) != 0u) gA *= p.heldGravity;
             if ((B.flags & FLAG_GROUP) != 0u) gB *= p.heldGravity;
         }
-        float fnet = gOn * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
+        // проба «заряд»: два камня (пыль или инертон, кроме ядрышек на концах щупалец) действуют друг на друга
+        // с множителем rockForce — при отрицательном отталкиваются. Все остальные пары — как раньше.
+        float pairSign = 1.0;
+        const bool aRock = (A.type == BODY_DUST || A.type == BODY_ATOM) && (A.flags & FLAG_HELD) == 0u;
+        const bool bRock = (B.type == BODY_DUST || B.type == BODY_ATOM) && (B.flags & FLAG_HELD) == 0u;
+        if (aRock && bRock) pairSign = p.rockForce;
+        float fnet = gOn * pairSign * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
 
         const float contact = A.r + B.r;
         if (r < contact) {
@@ -258,6 +264,18 @@ kernel void integrate(device Body *bodies           [[buffer(0)]],
         const float h = p.hSub;
         o.vel += accel[i] * h;
         o.vel *= exp(-p.VISCOSITY * h);
+        // проба «тепло»: среда не только тормозит, но и толкает (броуновское движение). Толчок обратно
+        // пропорционален корню из массы; корабль, ядрышки и втянутое в поглотитель не трогаем.
+        if (p.thermalKick > 0.0 && i != 0u && (o.flags & (FLAG_CAPTURED | FLAG_HELD)) == 0u) {
+            uint hsh = i * 747796405u + p.seed * 2891336453u + 12345u;
+            hsh = ((hsh >> ((hsh >> 28u) + 4u)) ^ hsh) * 277803737u; hsh = (hsh >> 22u) ^ hsh;
+            const float u1 = max(float(hsh & 0xFFFFFFu) / 16777216.0, 1e-6);
+            hsh = hsh * 747796405u + 2891336453u;
+            hsh = ((hsh >> ((hsh >> 28u) + 4u)) ^ hsh) * 277803737u; hsh = (hsh >> 22u) ^ hsh;
+            const float u2 = float(hsh & 0xFFFFFFu) / 16777216.0;
+            const float mag = sqrt(-2.0 * log(u1)) * p.thermalKick * sqrt(150.0 / max(o.m, 1.0));
+            o.vel += float2(cos(6.2831853 * u2), sin(6.2831853 * u2)) * mag;
+        }
         const float s2 = dot(o.vel, o.vel);
         const float cap2 = p.MAX_SPEED * p.MAX_SPEED;
         if (s2 > cap2) o.vel *= p.MAX_SPEED / sqrt(s2);

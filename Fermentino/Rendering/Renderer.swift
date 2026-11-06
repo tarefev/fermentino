@@ -12,7 +12,8 @@ import simd
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     let game: Game
-    var scale: Float = K.VIEW_ZOOM
+    // отладка: FERM_ZOOM=0.2 показывает всё поле издалека
+    var scale: Float = Float(ProcessInfo.processInfo.environment["FERM_ZOOM"] ?? "") ?? K.VIEW_ZOOM
 
     private let commandQueue: MTLCommandQueue
     private let shapeState: MTLRenderPipelineState
