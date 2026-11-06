@@ -39,8 +39,8 @@ struct PrologueView: View {
                     // реплика внизу кадра: наверху она закрывала лицо профессора
                     Spacer()
                     Text(Strings.t(frame.key))
-                        // рубленый шрифт в духе чертёжного ГОСТа: читается мелко, есть кириллица
-                        .font(.custom("DINAlternate-Bold", size: 19))
+                        // Russo One: широкий рубленый шрифт советского плакатного склада, с кириллицей
+                        .font(.custom("RussoOne-Regular", size: 16))
                         .foregroundStyle(prologueText)
                         .multilineTextAlignment(.leading)   // прижат к левому краю, не по центру
                         .lineSpacing(9)
