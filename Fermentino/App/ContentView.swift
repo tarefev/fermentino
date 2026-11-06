@@ -287,11 +287,9 @@ private struct AimTape: View {
                 if home { alpha = 1 }
                 ctx.stroke(tick, with: .color(hudText.opacity(alpha * edge)), lineWidth: home ? 1.5 : 1)
             }
-            // центральная риска: неподвижная, жирная, приглушённого красного (средний оттенок кнопок)
-            let mark = Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255)
-            var centre = Path()
-            centre.move(to: CGPoint(x: mid, y: base - 24)); centre.addLine(to: CGPoint(x: mid, y: base + 8))
-            ctx.stroke(centre, with: .color(mark.opacity(0.85)), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            // метка посередине: неподвижный золотой шарик — такой же, как указатель внутри корабля
+            let gold = Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255)
+            ctx.fill(Path(ellipseIn: CGRect(x: mid - 5, y: base - 23, width: 10, height: 10)), with: .color(gold))
         }
         .contentShape(Rectangle())
         .gesture(
