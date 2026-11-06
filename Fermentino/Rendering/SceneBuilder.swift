@@ -176,10 +176,14 @@ struct SceneBuilder {
                     let n = game.nuclei[s]
                     let d = rot(game.dx(bodies[n].pos.x, o.pos.x), game.dy(bodies[n].pos.y, o.pos.y))
                     let k = game.probeSector(s)
-                    var gold = K.COL_RIVET
+                    var red = K.COL_RIVET
+                    // кусочек, торчащий за борт, — тот же красный, сильно разбавленный белым: на тёмном фоне его видно
+                    var tip = red + (SIMD4<Float>(1, 1, 1, 1) - red) * 0.55
                     var inner = r * 0.905
-                    if k < game.probeOff.count && game.probeOff[k] { gold.w = 0.45; inner = r * 0.935 }
-                    rimMark(p.x, p.y, inner: inner, outer: r + 0.5, angle: atan2(d.y, d.x), halfWidth: 1.5, gold)
+                    if k < game.probeOff.count && game.probeOff[k] { red.w = 0.45; tip.w = 0.45; inner = r * 0.935 }
+                    let a = atan2(d.y, d.x)
+                    rimMark(p.x, p.y, inner: r - 0.5, outer: r + 0.5, angle: a, halfWidth: 1.5, tip)   // светлый, выглядывает наружу
+                    rimMark(p.x, p.y, inner: inner, outer: r, angle: a, halfWidth: 1.5, red)            // красный, внутри борта
                 }
             }
             if c.main && game.byDirection {
