@@ -324,11 +324,11 @@ private struct ProbeControls: View {
     private let probeColors: [Color] = [
         Color(red: 1, green: 0xe0 / 255, blue: 0xd6 / 255),
         Color(red: 1, green: 0xab / 255, blue: 0x99 / 255),
-        Color(red: 1, green: 0x2a / 255, blue: 0x1f / 255),               // средняя кнопка — ярко-красная, главная
+        Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255),
         Color(red: 0xd4 / 255, green: 0x3b / 255, blue: 0x3b / 255),
         Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
     ]
-    private let buttonSize: CGFloat = 48           // семь мест в ряду: пустое, пять кнопок, «отклеить» — средняя кнопка ровно под риской шкалы
+    private let buttonSize: CGFloat = 54
     @State private var pressed: Set<Int> = []      // какие кнопки щупов сейчас под пальцем
     @State private var starTurn: Double = 0        // градусы: поворот звезды секторов ползунком, от −180 до +180
 
@@ -360,8 +360,6 @@ private struct ProbeControls: View {
             // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
-                    // пустое место слева уравновешивает кнопку «отклеить» справа: средняя кнопка встаёт по центру экрана
-                    if !hud.probeArrows.isEmpty { Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
                     ForEach(Array(hud.probeFill.enumerated()), id: \.offset) { s, fill in
                         // оттенок красного = щуп. Кнопка полупрозрачная; чем больше на щупе, тем она ярче
                         // (стрелять нечем — почти пустая), выключенный щуп — едва виден. Тап бросает, долгое
@@ -373,9 +371,7 @@ private struct ProbeControls: View {
                         let col = probeColors[s % probeColors.count]
                         // выключенную кнопку при удержании ведём к тому виду, какой она получит после включения
                         // (щуп с одним своим ядрышком), иначе в конце заливка появляется скачком
-                        let isMain = !hud.probeArrows.isEmpty && s == hud.probeFill.count / 2   // средняя, главная
-                        let plain = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
-                        let bright = (isMain && fill > 0) ? 0.95 : plain
+                        let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
                         Circle()
                             .fill(col.opacity(bright * on))
                             .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))
@@ -384,7 +380,7 @@ private struct ProbeControls: View {
                                 if s < hud.probeArrows.count {
                                     Image(systemName: "arrow.up")
                                         .font(.system(size: 20, weight: .bold))
-                                        .foregroundStyle(isMain ? Color.white.opacity(0.35 + 0.6 * on) : col.opacity(0.3 + 0.65 * on))
+                                        .foregroundStyle(col.opacity(0.3 + 0.65 * on))
                                         .rotationEffect(.radians(Double(hud.probeArrows[s]) + .pi / 2))
                                         // зеркальный переворот ряда: стрелка плавно доворачивается, а не прыгает
                                         .animation(.easeInOut(duration: 0.25), value: hud.probeMirror)
