@@ -387,6 +387,7 @@ struct SceneBuilder {
             // после выстрела ядрышко улетело: новое нарастает на конце щупа за время перезарядки
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
+            if game.controlsLocked { continue }             // кнопки ещё не выданы — камня на щупальце нет вовсе
             circle(tx, ty, max(0.4, nr * (1 - reload)), col)
         }
     }

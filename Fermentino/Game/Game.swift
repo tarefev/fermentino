@@ -782,7 +782,12 @@ final class Game {
             if kept.isEmpty { holdOrder.removeAll { $0 == s } }
         }
         // перезарядка щупов после выстрела
-        for s in 0..<probeReload.count where probeReload[s] > 0 { probeReload[s] = max(0, probeReload[s] - K.DT) }
+        // пока кнопки не выданы, камня на включённых щупальцах ещё нет: держим их в начале «перезарядки».
+        // С реплики про кнопку она пойдёт своим ходом — камень вырастет, кнопка наберёт цвет.
+        if controlsLocked, let pr = round.probes {
+            for s in 0..<probeReload.count where s < probeOff.count && !probeOff[s] { probeReload[s] = pr.reload }
+        }
+        for s in 0..<probeReload.count where probeReload[s] > 0 && !controlsLocked { probeReload[s] = max(0, probeReload[s] - K.DT) }
 
         // рост: зерно цепляется, только КОСНУВШИСЬ ядрышка на конце щупа или уже прицепившегося зерна
         let usedByBonds = Set(cores[0].bonds.values)
