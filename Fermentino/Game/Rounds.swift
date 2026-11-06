@@ -188,8 +188,8 @@ enum Rounds {
             id: "flight", win: .reachZone,
             spawn: [],
             elements: [
-                // пять щупалец по лучам звезды: пять одинаковых ядрышек уравновешивают друг друга, корабль не болтает
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
+                // капсула недоделана: у неё пока одна рука. Щупалец, нашлёпок на борту и кнопок столько, сколько рук
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -209,8 +209,8 @@ enum Rounds {
             dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 40, minHostDist: 90, avoidZone: true,
                           rockForce: -1),           // масса зерна ~150
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            // кнопка стреляет своим щупальцем туда, где оно сейчас. На старте включено одно, среднее; остальные
-            // четыре выключены, игрок может включить их долгим нажатием, если догадается.
+            // одна рука и одна кнопка: кнопка стреляет щупальцем туда, где оно сейчас. Цвет — коралловый (третий
+            // в палитре). Режим руки задан туром, долгое нажатие ничего не переключает.
             // Управление по направлению (пять щупалец, стрелки, шкала с поворотом вида) было настроено так:
             // colorByDirection: true, arrowBase: 234°, arrowStep: −72°, sectorTilt: −14° — вернётся комплектующими.
             // собственный камень щупальца вшестеро тяжелее серого (150 → 900; до 06.11 было 450): корабль в газе
@@ -218,15 +218,15 @@ enum Rounds {
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
             // «заряд»: пойманный камень отталкивает свободные в полную силу (heldGravity 1), а конец щупальца
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
-            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200),
+            probes: ProbeDef(tipMass: 900, colorOffset: 2, heldGravity: 1, tipAlways: true, probeMass: 3200, fixedModes: true),
             substeps: 3                     // 600 зёрен: три подшага устойчивы и на 40% дешевле пяти
         ),
         RoundDef(
             id: "apples", win: .reachZone,
             spawn: [],
             elements: [
-                // те же пять лучей звезды, что всегда: пять нашлёпок на борту и пять кнопок
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
+                // профессор прикрутил ещё две руки: теперь их три, через равные углы по 120°
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, 30, 150], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -255,9 +255,9 @@ enum Rounds {
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
             // «заряд»: пойманный камень отталкивает свободные в полную силу (heldGravity 1), а конец щупальца
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
-            // работают три щупальца из пяти, через одно: среднее летает на камнях, как в первом туре, два крайних
-            // (лучи напротив него) стоят в режиме яблок, два между ними выключены. Кнопок по-прежнему пять. Режимы в этом туре — данность: игрок их не переключает и не выключает
-            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [0, 4], appleMode: true, fixedModes: true),
+            // три руки и три кнопки: средняя кнопка летает на камнях (тот же коралловый цвет, что в первом туре),
+            // две крайние стоят в режиме яблок. Режимы в этом туре — данность: игрок их не переключает и не выключает
+            probes: ProbeDef(tipMass: 900, colorOffset: 1, startOn: [1], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [0, 2], appleMode: true, fixedModes: true),
             substeps: 3,
             // пять яблок вокруг старта; поглотитель принимает корабль, только когда два из них в руках
             apples: AppleDef(n: 5, need: 2, r: 5, mass: 600, minDist: 450, maxDist: 1000)

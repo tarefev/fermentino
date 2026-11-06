@@ -1637,7 +1637,7 @@ final class Game {
                 bodies[apples[k]].vel = bodies[0].vel
             }
         }
-        if Lab.appleTest && !winTest && introT > 10 && !appleThrowTested { appleThrowTested = true; throwProbe(1) }
+        if Lab.appleTest && !winTest && introT > 10 && !appleThrowTested { appleThrowTested = true; throwProbe(0) }
         // отладка (FERM_WINTEST=1): корабль вместе со всем, что держит, переносится в поглотитель
         if winTest && introT > (Lab.appleTest ? 16 : 6) && !winning && !won {
             let delta = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y) - bodies[0].pos
