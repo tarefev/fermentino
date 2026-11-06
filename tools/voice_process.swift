@@ -60,7 +60,7 @@ func voice(_ x: [Float]) -> [Float] {
     let engine = AVAudioEngine()
     let player = AVAudioPlayerNode()
     let pitch = AVAudioUnitTimePitch()
-    pitch.pitch = -130                      // сотые полутона: чуть больше тона вниз
+    pitch.pitch = Float(ProcessInfo.processInfo.environment["PITCH"] ?? "") ?? -130   // сотые полутона: по умолчанию чуть больше тона вниз
     pitch.rate = 1.0
     let eq = AVAudioUnitEQ(numberOfBands: 3)
     eq.bands[0].filterType = .highPass; eq.bands[0].frequency = 85; eq.bands[0].bypass = false
