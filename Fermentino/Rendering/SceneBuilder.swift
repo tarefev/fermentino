@@ -275,8 +275,8 @@ struct SceneBuilder {
             let k = game.probeSector(s)                  // цвет, кнопка и «выключено» — по сектору, где щуп сейчас
             // цвет перетекает плавно: между центрами соседних секторов — смесь двух оттенков
             let blend = game.probeSectorBlend(s)
-            let colFrom = K.PROBE_COLORS[blend.from % K.PROBE_COLORS.count]
-            var col = colFrom + (K.PROBE_COLORS[blend.to % K.PROBE_COLORS.count] - colFrom) * blend.t
+            let colFrom = K.PROBE_COLORS[(blend.from + pr.colorOffset) % K.PROBE_COLORS.count]
+            var col = colFrom + (K.PROBE_COLORS[(blend.to + pr.colorOffset) % K.PROBE_COLORS.count] - colFrom) * blend.t
             for j in game.held[s] {
                 let ao = rot(game.dx(bodies[j].pos.x, host.pos.x) * scale, game.dy(bodies[j].pos.y, host.pos.y) * scale)
                 let ax = hp.x + ao.x, ay = hp.y + ao.y
@@ -333,7 +333,7 @@ struct SceneBuilder {
         let pulse = 0.25 + 0.75 * (0.5 + 0.5 * sin(game.gfxSpin * 1.2))   // мигание по прозрачности
         let ang = atan2(dir.y, dir.x)
         let halfW: Float = 20, height: Float = 9                            // плоский клин: тупой угол при острие (~118°)
-        var ship = rgb("#cc1414")                                           // цвет корабля
+        var ship = rgb("#be78ff")                                           // цвет поглотителя: стрелка указывает на него
         ship.w = 0.22 * pulse * fade
         circle(center.x, center.y, halfW * 1.5, ship, soft: 1)             // свечение
         ship.w = 0.95 * pulse * fade

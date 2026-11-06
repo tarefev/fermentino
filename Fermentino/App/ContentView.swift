@@ -357,7 +357,7 @@ private struct ProbeControls: View {
                     .frame(height: UIScreen.main.bounds.height / 3)
                     .padding(.bottom, 4)
             }
-            // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
+            // один ряд кнопок щупов (вариант А), по центру экрана
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
                     ForEach(Array(hud.probeFill.enumerated()), id: \.offset) { s, fill in
@@ -368,7 +368,7 @@ private struct ProbeControls: View {
                         let off = s < hud.probeOff.count && hud.probeOff[s]
                         let hold = s < hud.probeHold.count ? Double(hud.probeHold[s]) : 0
                         let on = off ? hold : 1 - hold          // 1 — выглядит включённой, 0 — выключенной
-                        let col = probeColors[s % probeColors.count]
+                        let col = probeColors[(s + hud.probeColorOffset) % probeColors.count]
                         // выключенную кнопку при удержании ведём к тому виду, какой она получит после включения
                         // (щуп с одним своим ядрышком), иначе в конце заливка появляется скачком
                         let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
@@ -403,19 +403,6 @@ private struct ProbeControls: View {
                 } else {
                     Spacer()
                 }
-                Button {
-                    session.undoLast()
-                } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(hudText)
-                        .frame(width: buttonSize, height: buttonSize)
-                        .background(Color.black.opacity(0.35), in: Circle())
-                        .overlay(Circle().stroke(hudText.opacity(0.5), lineWidth: 2))
-                        .frame(maxWidth: hud.controlMode == .buttons ? .infinity : nil)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 12)

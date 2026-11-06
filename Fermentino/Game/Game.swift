@@ -1376,6 +1376,7 @@ final class Game {
         }
         set(&h.probeArrows, byDirection ? arrowShown : [])
         set(&h.probeMirror, starMirrored)
+        set(&h.probeColorOffset, round.probes?.colorOffset ?? 0)
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
