@@ -95,9 +95,12 @@ final class Game {
     // стрелки стоят через равный угол (как лучи пятиугольника). «Сектор» щупа — кнопка, чья стрелка сейчас
     // ближе всего к нему. В этом режиме probeOff и нажатия кнопок считаются по секторам, а ловят все щупы.
     var byDirection: Bool { round.probes?.colorByDirection ?? false }
-    /// Поворот воображаемой звезды секторов ползунком над кнопками (рад): крутит разом все стрелки и границы,
-    /// где щуп меняет цвет и кнопку. Живёт, пока запущено приложение, перезапуск тура его не сбрасывает.
+    /// Положение шкалы над кнопками (рад). Шкала крутит не стрелки, а сам вид: кнопки и их стрелки стоят
+    /// на месте, мир поворачивается под ними. Живёт, пока запущено приложение, перезапуск тура его не сбрасывает.
     static var starTurn: Float = 0
+    /// Поворот вида вокруг корабля (рад, по часовой на экране). Тянешь шкалу вправо — мир идёт за пальцем,
+    /// то есть против часовой.
+    var viewRot: Float { byDirection ? -Game.starTurn : 0 }
     /// Угол стрелки кнопки k на экране (рад; 0 — вправо, +π/2 — вниз).
     func arrowAngle(_ k: Int) -> Float {
         guard let pr = round.probes else { return 0 }
@@ -106,7 +109,7 @@ final class Game {
     /// Куда смотрит средняя кнопка (главная метка на корабле): исходное направление плюс поворот шкалой.
     private var middleAngle: Float {
         guard let pr = round.probes else { return 0 }
-        return pr.arrowBase + pr.arrowStep * Float(cores[0].slots.count / 2) + Game.starTurn
+        return pr.arrowBase + pr.arrowStep * Float(cores[0].slots.count / 2)
     }
     /// Шаг между стрелками соседних кнопок. Ряд кнопок — это круг, развёрнутый в линию; чтобы левые кнопки
     /// всегда кидали влево, а правые вправо, порядок по кругу зеркалится, когда средняя кнопка смотрит вверх.
@@ -128,7 +131,7 @@ final class Game {
     /// Положение щупа s вдоль ряда кнопок: целое — ровно на стрелке кнопки, дробное — между соседними.
     private func sectorPos(_ s: Int) -> Float {
         guard let pr = round.probes, pr.arrowStep != 0 else { return Float(s) }
-        return (bodies[0].ang + cores[0].slots[s] - arrowAngle(0) - pr.sectorTilt) / effStep
+        return (bodies[0].ang + cores[0].slots[s] + viewRot - arrowAngle(0) - pr.sectorTilt) / effStep
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {

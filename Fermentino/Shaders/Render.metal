@@ -234,7 +234,10 @@ fragment float4 bgFragment(BgOut in [[stage_in]],
                            texture2d<float> liquid   [[texture(0)]])
 {
     constexpr sampler smp(address::repeat, filter::linear);
-    const float2 w0 = u.cam + (in.pt - u.viewSize * 0.5) / u.scale;
+    // экран = центр + R(viewRot)·(мир − камера)·scale → обратно: поворачиваем смещение пикселя на −viewRot
+    const float2 dpt = in.pt - u.viewSize * 0.5;
+    const float vc = cos(u.viewRot), vs = sin(u.viewRot);
+    const float2 w0 = u.cam + float2(vc * dpt.x + vs * dpt.y, -vs * dpt.x + vc * dpt.y) / u.scale;
     const float ws = u.worldSize;
     float3 col = liquid.sample(smp, w0 / ws).rgb;
     // зерно: мягкие крупинки со случайным сдвигом и размером внутри ячейки — сетка не читается (дёшево: три хэша)

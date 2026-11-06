@@ -24,12 +24,21 @@ struct SceneBuilder {
 
     private var cx: Float { w / 2 }
     private var cy: Float { h / 2 }
+    // поворот вида вокруг корабля: косинус и синус угла game.viewRot
+    private let rc: Float
+    private let rs: Float
+    /// Экранное смещение, повёрнутое вместе с видом.
+    private func rot(_ ox: Float, _ oy: Float) -> SIMD2<Float> {
+        SIMD2<Float>(rc * ox - rs * oy, rs * ox + rc * oy)
+    }
 
     init(game: Game, size: CGSize, scale: Float) {
         self.game = game
         self.w = Float(size.width)
         self.h = Float(size.height)
         self.scale = scale
+        self.rc = cos(game.viewRot)
+        self.rs = sin(game.viewRot)
         scene.shapes.reserveCapacity(game.count * 2 + 800)
     }
 
@@ -99,8 +108,8 @@ struct SceneBuilder {
 
     /// Экранная позиция тела относительно камеры (ближайший образ).
     private func screen(_ x: Float, _ y: Float, cam: SIMD2<Float>) -> SIMD2<Float> {
-        let ox = game.dx(x, cam.x) * scale, oy = game.dy(y, cam.y) * scale
-        return SIMD2<Float>(cx + ox, cy + oy)
+        let o = rot(game.dx(x, cam.x) * scale, game.dy(y, cam.y) * scale)
+        return SIMD2<Float>(cx + o.x, cy + o.y)
     }
 
     // MARK: - объекты
@@ -185,7 +194,8 @@ struct SceneBuilder {
 
         // звёзды
         for s in game.stars {
-            let sx = game.dx(s.x, cam.x) * scale, sy = game.dy(s.y, cam.y) * scale
+            let so = rot(game.dx(s.x, cam.x) * scale, game.dy(s.y, cam.y) * scale)
+            let sx = so.x, sy = so.y
             if sx < -cx || sx > cx || sy < -cy || sy > cy { continue }
             let r: Float = s.big ? 1.6 : 1.0
             circle(cx + sx, cy + sy, r, s.big ? K.COL_STAR_BRIGHT : K.COL_STAR)   // круглые, не квадратики
@@ -229,8 +239,8 @@ struct SceneBuilder {
             for a in 0..<game.cores.count {
                 let ap = screen(bodies[a].pos.x, bodies[a].pos.y, cam: cam)
                 for b in game.cores[a].bonds.keys {
-                    let bx = ap.x + game.dx(bodies[b].pos.x, bodies[a].pos.x) * scale
-                    let by = ap.y + game.dy(bodies[b].pos.y, bodies[a].pos.y) * scale
+                    let bo = rot(game.dx(bodies[b].pos.x, bodies[a].pos.x) * scale, game.dy(bodies[b].pos.y, bodies[a].pos.y) * scale)
+                    let bx = ap.x + bo.x, by = ap.y + bo.y
                     line(ap.x, ap.y, bx, by, col)
                 }
             }
@@ -268,13 +278,13 @@ struct SceneBuilder {
             let colFrom = K.PROBE_COLORS[blend.from % K.PROBE_COLORS.count]
             var col = colFrom + (K.PROBE_COLORS[blend.to % K.PROBE_COLORS.count] - colFrom) * blend.t
             for j in game.held[s] {
-                let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
-                let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
+                let ao = rot(game.dx(bodies[j].pos.x, host.pos.x) * scale, game.dy(bodies[j].pos.y, host.pos.y) * scale)
+                let ax = hp.x + ao.x, ay = hp.y + ao.y
                 circle(ax, ay, bodies[j].r * scale + 0.4, col)
             }
             let n = game.nuclei[s]
-            let tx = hp.x + game.dx(bodies[n].pos.x, host.pos.x) * scale
-            let ty = hp.y + game.dy(bodies[n].pos.y, host.pos.y) * scale
+            let to = rot(game.dx(bodies[n].pos.x, host.pos.x) * scale, game.dy(bodies[n].pos.y, host.pos.y) * scale)
+            let tx = hp.x + to.x, ty = hp.y + to.y
             let nr = bodies[n].r * scale
             // долгое нажатие на кнопку. Выключение: кольцо стягивается к ядрышку и ярчает; сомкнулось — щуп
             // выключен. Включение — то же самое, прокрученное задом наперёд: ядрышко сразу целое, кольцо
@@ -356,14 +366,20 @@ struct SceneBuilder {
 
         let zone = game.zone
         let zr = max(3, zone.r * sc)
-        circle(mmc + game.dx(zone.x, cam.x) * sc, mmm + game.dy(zone.y, cam.y) * sc, zr, rgba(190, 140, 255, 0.85), inner: zr - 1)
+        // миникарта повёрнута вместе с видом: направление на поглотитель на ней то же, что на экране
+        let zo = rot(game.dx(zone.x, cam.x) * sc, game.dy(zone.y, cam.y) * sc)
+        circle(mmc + zo.x, mmm + zo.y, zr, rgba(190, 140, 255, 0.85), inner: zr - 1)
 
         for o in 0..<game.count where bodies[o].type == BodyType.atom {
             let col = bodies[o].isMine ? K.COL_MINE : rgba(138, 160, 189, 0.45)
-            rect(mmc + game.dx(bodies[o].pos.x, cam.x) * sc - 0.7, mmm + game.dy(bodies[o].pos.y, cam.y) * sc - 0.7, 1.4, 1.4, col)
+            let mo = rot(game.dx(bodies[o].pos.x, cam.x) * sc, game.dy(bodies[o].pos.y, cam.y) * sc)
+            if abs(mo.x) > mmS / 2 || abs(mo.y) > mmS / 2 { continue }
+            rect(mmc + mo.x - 0.7, mmm + mo.y - 0.7, 1.4, 1.4, col)
         }
         for c in 0..<game.cores.count where !game.cores[c].main {
-            let px = mmc + game.dx(bodies[c].pos.x, cam.x) * sc, py = mmm + game.dy(bodies[c].pos.y, cam.y) * sc
+            let co = rot(game.dx(bodies[c].pos.x, cam.x) * sc, game.dy(bodies[c].pos.y, cam.y) * sc)
+            if abs(co.x) > mmS / 2 || abs(co.y) > mmS / 2 { continue }
+            let px = mmc + co.x, py = mmm + co.y
             circle(px, py, 2.2, game.cores[c].col)
         }
         // корабль в центре: красный кружок без обводки, внутри золотая звёздочка

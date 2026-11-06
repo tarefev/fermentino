@@ -144,6 +144,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         uniforms.cam = game.mainCore.pos
         uniforms.scale = scale
         uniforms.worldSize = K.WORLD_W
+        uniforms.viewRot = game.viewRot
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { commandBuffer.commit(); return }
         encoder.label = "scene"

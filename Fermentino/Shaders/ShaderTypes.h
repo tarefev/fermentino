@@ -88,6 +88,7 @@ typedef struct {
     simd_float2 cam;       // мировая позиция камеры (хост)
     float scale;           // точек на мировую единицу
     float worldSize;       // сторона тор-мира (фон тайлится с этим периодом)
+    float viewRot;         // рад: поворот вида вокруг центра экрана (мир крутится под неподвижными кнопками)
 } FrameUniforms;
 
 #endif /* ShaderTypes_h */
