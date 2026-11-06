@@ -74,6 +74,7 @@ enum K {
     static let COL_HULL = rgb("#6a3a24")          // ржавое железо; швы, заклёпки и разводы рисует шейдер (фигура 6)
     static let COL_HULL_ON = rgb("#efe6d6")       // включён: белая эмаль (вариант 1 с листа docs/ship-colors.png)
     static let COL_EMBLEM = rgb("#d81a1a")        // звезда
+    static let COL_APPLE = rgb("#ffd23a")         // яблоки, руки в режиме яблок и стрелка, когда она ведёт к яблоку
     static let COL_RIVET = COL_EMBLEM             // нашлёпки на борту — красные, как звезда
     static let SHIP_ON_DELAY: Float = 1.2         // сколько секунд корабль стоит ржавым
     static let SHIP_ON_TIME: Float = 3.5          // за сколько секунд разгорается

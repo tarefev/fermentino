@@ -54,6 +54,9 @@ final class HUDModel {
     var probeCharge: [Float] = []        // 0…1: восстановление щупа после выстрела (1 — готов)
     var probeMirror = false              // ряд кнопок зеркально перевёрнут (средняя смотрит вверх)
     var probeLocked = false              // кнопки щупалец ещё недоступны: профессор не дошёл до реплики про них
+    var probeMode: [Int] = []            // режим щупальца: 0 — камни, 1 — выключено, 2 — яблоки
+    var probeNextMode: [Int] = []        // режим, в который его переведёт долгое нажатие
+    var probeApple: [Bool] = []          // на щупальце висит яблоко
     var probeHold: [Float] = []          // 0…1: насколько дожато долгое нажатие на кнопку щупа
     var controlMode: ControlMode = .buttons
     var narration = ""

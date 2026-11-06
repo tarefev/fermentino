@@ -101,6 +101,36 @@ final class Game {
     private(set) var probePulse: [Float] = [] // 1→0: пустой щуп дёргается, когда нажали его кнопку
     private(set) var probeReload: [Float] = [] // с до конца перезарядки щупа после выстрела (0 = готов)
     private(set) var probeOff: [Bool] = []     // щуп выключен: ничего не ловит
+    /// Режим каждого щупальца: 0 — камни (ловит камни и растит свой), 1 — выключено, 2 — яблоки (ловит только
+    /// яблоки, своего камня не растит). probeOff = «не в режиме камней» — на нём держится вся прежняя логика.
+    private(set) var probeMode: [Int] = []
+    private(set) var apples: [Int] = []        // тела-яблоки
+    /// Сколько яблок сейчас в руках.
+    var applesHeld: Int {
+        var n = 0
+        for clump in held { for j in clump where bodies[j].flags & BodyFlag.apple != 0 { n += 1 } }
+        return n
+    }
+    /// Поглотитель открыт: в туре без яблок — всегда, с яблоками — когда в руках нужное число.
+    var zoneOpen: Bool {
+        guard let a = round.apples else { return true }
+        if applesHeld >= a.need { return true }
+        return false
+    }
+    /// Куда показывает стрелка у корабля: пока поглотитель закрыт — на ближайшее свободное яблоко, потом на поглотитель.
+    var arrowTarget: (pos: SIMD2<Float>, apple: Bool) {
+        if !zoneOpen {
+            let host = bodies[0]
+            var best = -1
+            var bestD = Float.greatestFiniteMagnitude
+            for o in apples where bodies[o].flags & (BodyFlag.group | BodyFlag.captured) == 0 {
+                let d = hypot(dx(bodies[o].pos.x, host.pos.x), dy(bodies[o].pos.y, host.pos.y))
+                if d < bestD { bestD = d; best = o }
+            }
+            if best >= 0 { return (bodies[best].pos, true) }
+        }
+        return (SIMD2<Float>(zone.x, zone.y), false)
+    }
     private var probePress: [Float] = []       // с, сколько держат кнопку щупа; -1 = не нажата; .infinity = уже сработало
     /// 0…1: насколько дожато долгое нажатие на кнопку щупа s (для анимации на кнопке и на щупе).
     func probeHoldProgress(_ s: Int) -> Float {
@@ -367,6 +397,8 @@ final class Game {
                 else if held[s].count < pr.maxClump { pm = pr.probeMass * pr.fillingGravity }
                 if Lab.tipAlways || pr.tipAlways { pm = pr.probeMass }   // «заряд»: щупальце тянет всегда, его гасят пойманные камни
             }
+            // рука в режиме яблок: пустая тянет яблоки (знак минус — сорт заряда), занятая не тянет ничего
+            if let pr = round.probes, s < probeMode.count, probeMode[s] == 2, held[s].isEmpty { pm = -pr.applePull }
             sim.probeMass[s] = pm
         }
         // флаг «на щупе» для ядра сил (место покоя тело хранит само: ang и angVel)
@@ -421,6 +453,7 @@ final class Game {
     }
 
     func setup() {
+        if let r = Lab.round, !Lab.roundApplied, r < Rounds.all.count { Lab.roundApplied = true; Progress.roundIndex = r }
         round = Rounds.all[Progress.roundIndex]
         elements = round.elements
         interactIndex = round.interactIndex()
@@ -436,7 +469,7 @@ final class Game {
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
         narrationQueue = []; narrationShownAt = -1; narrationShow = nil; narrationSticky = false; firstThrowAt = -1; said = []
-        chalkT = -1; chalkDone = false; shipDoneT = 0
+        chalkT = -1; chalkDone = false; shipDoneT = 0; appleTestDone = false
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -531,6 +564,10 @@ final class Game {
             if let startOn = round.probes?.startOn {
                 for s in 0..<probeOff.count where !startOn.contains(s) { probeOff[s] = true }
             }
+            probeMode = probeOff.map { $0 ? 1 : 0 }
+            if let startApple = round.probes?.startApple {
+                for s in startApple where s < probeMode.count { probeMode[s] = 2; probeOff[s] = true }
+            }
             probePress = Array(repeating: -1, count: cores[0].slots.count)
             bodies[0].kAngle = pr.kAngle
         }
@@ -582,6 +619,34 @@ final class Game {
                 b.vel = SIMD2<Float>(rnd(-K.START_SPEED, K.START_SPEED), rnd(-K.START_SPEED, K.START_SPEED))
                 b.r = rnd(d.rMin, d.rMax)
                 b.m = d.density * b.r * b.r
+                bodies[count] = b; count += 1
+            }
+        }
+
+        // яблоки: вокруг старта на разных расстояниях и по разным сторонам, не в поглотителе
+        apples = []
+        if let a = round.apples {
+            let host = bodies[0]
+            let base = rnd(0, .pi * 2)
+            for k in 0..<a.n {
+                guard count < sim.capacity else { break }
+                var pos = host.pos
+                var tries = 0
+                while tries < 50 {
+                    let ang = base + (Float(k) + rnd(-0.3, 0.3)) * 2 * .pi / Float(a.n)
+                    let dist = rnd(a.minDist, a.maxDist)
+                    pos = SIMD2<Float>(Game.wrapCoord(host.pos.x + cos(ang) * dist, K.WORLD_W),
+                                       Game.wrapCoord(host.pos.y + sin(ang) * dist, K.WORLD_H))
+                    if hypot(dx(pos.x, zone.x), dy(pos.y, zone.y)) > zone.r + 60 { break }
+                    tries += 1
+                }
+                var b = Body()
+                b.type = BodyType.dust
+                b.flags = BodyFlag.apple
+                b.pos = pos
+                b.r = a.r
+                b.m = a.mass
+                apples.append(count)
                 bodies[count] = b; count += 1
             }
         }
@@ -800,6 +865,7 @@ final class Game {
             let n = nuclei[s]
             for o in cores.count..<count where bodies[o].type == BodyType.dust {
                 if held[s].count >= pr.maxClump { break }
+                if bodies[o].flags & BodyFlag.apple != 0 { continue }       // яблоки ловит только рука в режиме яблок
                 if bodies[o].heat > 0 || bodies[o].isCaptured || taken.contains(o) { continue }
                 let ndx = dx(bodies[o].pos.x, bodies[n].pos.x), ndy = dy(bodies[o].pos.y, bodies[n].pos.y)
                 let nReach = (bodies[o].r + bodies[n].r) * pr.linkGap
@@ -817,6 +883,31 @@ final class Game {
                 bodies[o].kAngle = Float(s)
                 taken.insert(o)
                 held[s].append(o)
+            }
+        }
+        catchApples()
+    }
+
+    /// Рука в режиме яблок берёт одно яблоко — то, что коснулось её конца.
+    private func catchApples() {
+        guard let pr = round.probes, !apples.isEmpty else { return }
+        for s in 0..<held.count where s < probeMode.count && probeMode[s] == 2 && held[s].isEmpty {
+            let n = nuclei[s]
+            for o in apples {
+                if bodies[o].flags & (BodyFlag.group | BodyFlag.captured) != 0 || bodies[o].heat > 0 { continue }
+                let ndx = dx(bodies[o].pos.x, bodies[n].pos.x), ndy = dy(bodies[o].pos.y, bodies[n].pos.y)
+                let reach = bodies[o].r + pr.palmR                     // яблоко задело ладонь
+                if ndx * ndx + ndy * ndy > reach * reach { continue }
+                // рука хватает: яблоко дальше движется вместе с её концом, а разницу скоростей получает корабль
+                // (неупругий захват, импульс сохраняется)
+                let dv = bodies[o].vel - bodies[n].vel
+                bodies[o].vel = bodies[n].vel
+                bodies[0].vel += dv * (bodies[o].m / bodies[0].m)
+                holdOrder.append(s)
+                bodies[o].flags |= BodyFlag.member
+                bodies[o].kAngle = Float(s)
+                held[s].append(o)
+                break
             }
         }
     }
@@ -857,12 +948,15 @@ final class Game {
         }
     }
 
-    /// Долгое нажатие на кнопку щупа: выключить / включить. Выключенный щуп ничего не ловит;
-    /// если на нём висел комок, он отпускается без броска.
+    /// Долгое нажатие на кнопку щупальца листает его режим. В туре без яблок режимов два: камни ↔ выключено.
+    /// С яблоками три, по кругу: камни → выключено → яблоки. Всё, что висело на щупальце, при смене режима
+    /// отпускается без броска.
     func toggleProbe(_ s: Int) {
-        guard probesOn, s >= 0, s < probeOff.count, !winning else { return }
-        probeOff[s].toggle()
-        if !byDirection && probeOff[s] && !held[s].isEmpty { releaseProbe(s) }
+        guard probesOn, s >= 0, s < probeOff.count, s < probeMode.count, !winning else { return }
+        let modes = (round.probes?.appleMode ?? false) ? 3 : 2
+        probeMode[s] = (probeMode[s] + 1) % modes
+        probeOff[s] = probeMode[s] != 0
+        if !byDirection && !held[s].isEmpty { releaseProbe(s) }
     }
 
     /// Выстреленная копия ядрышка: обычное зерно пыли в точке конца щупа. Не больше 120 штук в мире —
@@ -1230,7 +1324,7 @@ final class Game {
     /// Комок — свободные зёрна, связанные касанием (как в splitBigClumps).
     private func printFieldStats() {
         fieldStatsTick += 1
-        if fieldStatsTick % 5 != 0 { return }
+        if fieldStatsTick % (apples.isEmpty ? 5 : 1) != 0 { return }
         guard let d = round.dust else { return }
         var idx: [Int] = []
         for o in cores.count..<count where bodies[o].type == BodyType.dust
@@ -1268,9 +1362,14 @@ final class Game {
             beltC[b] += 1; beltG[b] += c
         }
         print("FIELD t=\(Int(roundT)) free=\(n) clumps=\(comps.count) biggest=\(biggest) | by size 1:\(cls[0]) 2-5:\(cls[1])/\(grains[1]) 6-12:\(cls[2])/\(grains[2]) 13-24:\(cls[3])/\(grains[3]) 25+:\(cls[4])/\(grains[4]) | by dist clumps/grains <60:\(beltC[0])/\(beltG[0]) 60-200:\(beltC[1])/\(beltG[1]) 200-400:\(beltC[2])/\(beltG[2]) far:\(beltC[3])/\(beltG[3]) | held=\(held.map { $0.count }) hostV=\(Int(simd_length(host.vel)))")
+        if !apples.isEmpty {
+            let ds = apples.map { Int(hypot(dx(bodies[$0].pos.x, host.pos.x), dy(bodies[$0].pos.y, host.pos.y))) }
+            print("APPLES t=\(Int(roundT)) dist=\(ds) flags=\(apples.map { bodies[$0].flags }) inHands=\(applesHeld) modes=\(probeMode) pm=\((0..<5).map { Int(sim.probeMass[$0]) }) zoneOpen=\(zoneOpen)")
+        }
     }
     private var fieldStatsTick = 0
     private var labSeed: UInt32 = 0
+    private var appleTestDone = false
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
@@ -1435,6 +1534,7 @@ final class Game {
             // обучение: хост долетел до поглотителя → всасывается сам
             assembled = false
             if !inZone(0) { return }
+            if !zoneOpen { return }                 // поглотитель принимает корабль только с нужным грузом
             winning = true
             zone.bhT = 0
             winMol = [0]
@@ -1498,7 +1598,21 @@ final class Game {
         let rawElapsed = Float(now - last); last = now
         if !introHold { introT += rawElapsed }
         if bodies[0].cap >= 1 { shipDoneT += rawElapsed }
-        if winTest && introT > 6 && !winning && !won { bodies[0].pos = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y); bodies[0].vel = .zero }
+        // отладка (FERM_APPLETEST=1): на четвёртой секунде нужные яблоки сами оказываются возле корабля
+        if Lab.appleTest && introT > 4 && !appleTestDone, let a = round.apples {
+            appleTestDone = true
+            for k in 0..<min(a.need, apples.count) {
+                let ang = bodies[0].ang + Float(k) * 2.4
+                bodies[apples[k]].pos = bodies[0].pos + SIMD2<Float>(cos(ang), sin(ang)) * 70
+                bodies[apples[k]].vel = bodies[0].vel
+            }
+        }
+        // отладка (FERM_WINTEST=1): корабль вместе со всем, что держит, переносится в поглотитель
+        if winTest && introT > (Lab.appleTest ? 16 : 6) && !winning && !won {
+            let delta = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y) - bodies[0].pos
+            for o in 0..<count where o == 0 || bodies[o].flags & BodyFlag.group != 0 { bodies[o].pos += delta }
+            bodies[0].vel = .zero
+        }
         if !won { roundT += rawElapsed }
         advanceShotWaves(rawElapsed)
         if !puffs.isEmpty {
@@ -1598,6 +1712,11 @@ final class Game {
         })
         set(&h.probeOff, probeOff)
         set(&h.probeLocked, controlsLocked)
+        set(&h.probeMode, probeMode)
+        set(&h.probeApple, (0..<held.count).map { s in held[s].contains { bodies[$0].flags & BodyFlag.apple != 0 } })
+        // какой режим кнопка получит после долгого нажатия — к его виду она плавно идёт, пока держат
+        let modes = (round.probes?.appleMode ?? false) ? 3 : 2
+        set(&h.probeNextMode, probeMode.map { ($0 + 1) % modes })
         // восстановление после выстрела: 0 сразу после, 1 — щупальце снова готово (кнопка набирает цвет)
         set(&h.probeCharge, (0..<held.count).map { s -> Float in
             let p = sectorProbe(s)
@@ -1683,6 +1802,11 @@ enum Lab {
     static let heldGravity: Float? = f("FERM_HELDG")
     /// FERM_TIPALWAYS=1: конец щупальца притягивает всегда, даже с полным комком.
     static let tipAlways = ProcessInfo.processInfo.environment["FERM_TIPALWAYS"] == "1"
+    /// FERM_ROUND=N: при запуске перейти сразу к туру N (0 — первый).
+    static let round: Int? = Int(ProcessInfo.processInfo.environment["FERM_ROUND"] ?? "")
+    static var roundApplied = false
+    /// FERM_APPLETEST=1: проверка тура с яблоками без полёта — яблоки сами подлетают к кораблю.
+    static let appleTest = ProcessInfo.processInfo.environment["FERM_APPLETEST"] == "1"
     /// FERM_NOSPLIT=1: большие комки не делятся.
     static let noSplit = ProcessInfo.processInfo.environment["FERM_NOSPLIT"] == "1"
 }

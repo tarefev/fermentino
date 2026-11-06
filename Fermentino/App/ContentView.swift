@@ -350,14 +350,30 @@ private struct ProbeControls: View {
     let hud: HUDModel
     let session: GameSession
 
-    // пять оттенков красного от светлого к тёмному — те же, что у щупов в игре
-    private let probeColors: [Color] = [
-        Color(red: 1, green: 0xe0 / 255, blue: 0xd6 / 255),
-        Color(red: 1, green: 0xab / 255, blue: 0x99 / 255),
-        Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255),
-        Color(red: 0xd4 / 255, green: 0x3b / 255, blue: 0x3b / 255),
-        Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
+    // пять оттенков красного от светлого к тёмному — те же, что у щупов в игре (красный, зелёный, синий)
+    private let probeRGB: [(Double, Double, Double)] = [
+        (1, 0xe0 / 255, 0xd6 / 255),
+        (1, 0xab / 255, 0x99 / 255),
+        (0xf8 / 255, 0x70 / 255, 0x5e / 255),
+        (0xd4 / 255, 0x3b / 255, 0x3b / 255),
+        (0x9c / 255, 0x24 / 255, 0x40 / 255),
     ]
+    private let appleRGB: (Double, Double, Double) = (1, 0xd2 / 255, 0x3a / 255)   // цвет яблок и рук, которые их ловят
+
+    /// Вид кнопки щупальца s в режиме mode: цвет, яркость обводки и яркость заливки.
+    /// 0 — камни: красная, готовая — сплошной кружок, после выстрела заливка набирается заново.
+    /// 1 — выключено: бледное пустое колечко. 2 — яблоки: жёлтое колечко, с яблоком в руке — сплошной жёлтый кружок.
+    private func look(_ s: Int, mode: Int) -> (rgb: (Double, Double, Double), stroke: Double, fill: Double) {
+        let red = probeRGB[(s + hud.probeColorOffset) % probeRGB.count]
+        if mode == 1 { return (red, 0.2, 0) }
+        if mode == 2 {
+            let has = s < hud.probeApple.count && hud.probeApple[s]
+            return (appleRGB, 1, has ? 1 : 0.06)
+        }
+        let charge = s < hud.probeCharge.count ? Double(hud.probeCharge[s]) : 1
+        return (red, 1, charge < 1 ? 0.06 + 0.94 * charge : 1)
+    }
+
     private let buttonSize: CGFloat = 54
     private let sideInset: CGFloat = 12            // поля ряда кнопок по бокам (см. padding внизу body)
     private let bottomInset: CGFloat = 18          // отступ ряда от безопасной зоны снизу
@@ -405,27 +421,27 @@ private struct ProbeControls: View {
                         // в то состояние, в которое перейдёт.
                         let off = s < hud.probeOff.count && hud.probeOff[s]
                         let hold = s < hud.probeHold.count ? Double(hud.probeHold[s]) : 0
-                        let on = off ? hold : 1 - hold          // 1 — выглядит включённой, 0 — выключенной
-                        let col = probeColors[(s + hud.probeColorOffset) % probeColors.count]
-                        let charge = s < hud.probeCharge.count ? Double(hud.probeCharge[s]) : 1
-                        let charging = !off && charge < 1
-                        // готовая кнопка — сплошной непрозрачный кружок, ровно цвета своей обводки. Пока щупальце
-                        // восстанавливается после выстрела, заливка набирается от почти пустой до сплошной
-                        let ready: Double = 1
-                        let bright = charging ? 0.06 + 0.94 * charge : ready
+                        // пока кнопку держат, она плавно идёт от вида своего режима к виду следующего
+                        let now = look(s, mode: s < hud.probeMode.count ? hud.probeMode[s] : (off ? 1 : 0))
+                        let next = look(s, mode: s < hud.probeNextMode.count ? hud.probeNextMode[s] : (off ? 0 : 1))
+                        let col = Color(red: now.rgb.0 + (next.rgb.0 - now.rgb.0) * hold,
+                                        green: now.rgb.1 + (next.rgb.1 - now.rgb.1) * hold,
+                                        blue: now.rgb.2 + (next.rgb.2 - now.rgb.2) * hold)
+                        let stroke = now.stroke + (next.stroke - now.stroke) * hold
+                        let fillA = now.fill + (next.fill - now.fill) * hold
                         // пока кнопки не выданы (профессор ещё не сказал про них), ряд стоит бледными пустыми
                         // кружками и не нажимается; на реплике про кнопку они плавно набирают обычный вид
                         let live: Double = hud.probeLocked ? 0 : 1
                         Circle()
-                            .fill(col.opacity(bright * on * live))
-                            .overlay(Circle().stroke(col.opacity((0.2 + 0.8 * on) * (0.2 + 0.8 * live)), lineWidth: 2))
+                            .fill(col.opacity(fillA * live))
+                            .overlay(Circle().stroke(col.opacity(stroke * (0.2 + 0.8 * live)), lineWidth: 2))
                             .animation(.easeOut(duration: 0.6), value: hud.probeLocked)
                             // кнопка по направлению: стрелка показывает, куда она стреляет
                             .overlay {
                                 if s < hud.probeArrows.count {
                                     Image(systemName: "arrow.up")
                                         .font(.system(size: 20, weight: .bold))
-                                        .foregroundStyle(col.opacity(0.3 + 0.65 * on))
+                                        .foregroundStyle(col.opacity(0.3 + 0.65 * stroke))
                                         .rotationEffect(.radians(Double(hud.probeArrows[s]) + .pi / 2))
                                         // зеркальный переворот ряда: стрелка плавно доворачивается, а не прыгает
                                         .animation(.easeInOut(duration: 0.25), value: hud.probeMirror)

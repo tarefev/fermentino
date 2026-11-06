@@ -20,6 +20,7 @@ enum BodyFlag {
     static let held: UInt32 = 16     // ядро комка: прибито к концу щупа хоста
     static let member: UInt32 = 32   // зерно комка: держится притяжением своего щупа и контактом
     static let group: UInt32 = 48    // held | member
+    static let apple: UInt32 = 64    // «яблоко»: особый груз, который ловит только рука в режиме яблок
 }
 
 extension Body {

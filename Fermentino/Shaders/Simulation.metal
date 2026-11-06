@@ -18,6 +18,8 @@ using namespace metal;
 #define FLAG_HELD     16u   // ядро комка: прибито к концу щупа
 #define FLAG_MEMBER   32u   // зерно комка: держится притяжением конца своего щупа и контактом
 #define FLAG_GROUP    48u
+#define FLAG_APPLE    64u   // «яблоко»: заряд другого сорта — камни его не чувствуют, тянет его только рука в режиме яблок
+#define BODY_TIP    4u
 
 inline float wrapDelta(float d, float halfSize, float full)
 {
@@ -114,7 +116,11 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         float pairSign = 1.0;
         const bool aRock = (A.type == BODY_DUST || A.type == BODY_ATOM) && (A.flags & FLAG_HELD) == 0u;
         const bool bRock = (B.type == BODY_DUST || B.type == BODY_ATOM) && (B.flags & FLAG_HELD) == 0u;
-        if (aRock && bRock) pairSign = p.rockForce;
+        // камни и яблоки несут заряды разного сорта: одноимённые действуют друг на друга (rockForce),
+        // разноимённые друг друга не чувствуют; ядрышко на конце щупальца тянет только камни
+        const bool aApple = (A.flags & FLAG_APPLE) != 0u, bApple = (B.flags & FLAG_APPLE) != 0u;
+        if (aRock && bRock) pairSign = (aApple == bApple) ? p.rockForce : 0.0;
+        if ((aApple && B.type == BODY_TIP) || (bApple && A.type == BODY_TIP)) pairSign = 0.0;
         float fnet = gOn * pairSign * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
 
         const float contact = A.r + B.r;
@@ -193,6 +199,12 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
             for (int s = 0; s < int(FERM_MAX_SLOTS); ++s) {
                 float pm = probeMass[s];
                 if (member) pm = (s == ownSlot) ? p.memberPull : 0.0;
+                else {
+                    // знак массы щупальца — его режим: плюс тянет камни, минус — только яблоки
+                    const bool apple = (B.flags & FLAG_APPLE) != 0u;
+                    if (pm < 0.0) pm = apple ? -pm : 0.0;
+                    else if (apple) pm = 0.0;
+                }
                 if (pm <= 0.0) continue;
                 const float ta = A.ang + slots[s];
                 const float2 tip = A.pos + float2(cos(ta), sin(ta)) * p.holdLen;
@@ -216,6 +228,11 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         for (int s = 0; s < int(FERM_MAX_SLOTS); ++s) {
             float pm = probeMass[s];
             if (member) pm = (s == ownSlot) ? p.memberPull : 0.0;
+            else {
+                const bool apple = (A.flags & FLAG_APPLE) != 0u;
+                if (pm < 0.0) pm = apple ? -pm : 0.0;
+                else if (apple) pm = 0.0;
+            }
             if (pm <= 0.0) continue;
             const float ta = H.ang + slots[s];
             const float2 tip = H.pos + float2(cos(ta), sin(ta)) * p.holdLen;

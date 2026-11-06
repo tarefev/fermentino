@@ -133,6 +133,23 @@ struct SceneBuilder {
         if p.x < cx - marginX || p.x > cx + marginX || p.y < cy - marginY || p.y > cy + marginY { return }
         let r = o.r * scale
 
+        if o.type == BodyType.dust && o.flags & BodyFlag.apple != 0 {
+            // яблоко: жёлтое, светится, с бликом; в поглотителе белеет, как всё остальное
+            let pulse = 0.5 + 0.5 * sin(game.gfxSpin * 0.9 + Float(i))
+            var fade: Float = 1
+            if o.flags & BodyFlag.group != 0 { fade = game.shipFade }      // в руке — тает вместе с кораблём
+            // сияние: широкий слабый ореол, который дышит, и плотное свечение у самого яблока
+            var halo = K.COL_APPLE; halo.w = (0.10 + 0.08 * pulse) * fade
+            circle(p.x, p.y, r * (7.5 + 1.5 * pulse), halo, soft: 1)
+            var glow = K.COL_APPLE; glow.w = (0.34 + 0.16 * pulse) * fade
+            circle(p.x, p.y, r * 3.4, glow, soft: 1)
+            var col = K.COL_APPLE
+            if o.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * o.cap }
+            col.w = fade
+            circle(p.x, p.y, r + K.ROCK_GROW, col)
+            circle(p.x - r * 0.3, p.y - r * 0.3, r * 0.5, SIMD4<Float>(1, 1, 1, 0.5 * fade), soft: 1)
+            return
+        }
         if o.type == BodyType.dust {
             var t: Float = 0
             if let dex = game.round.dust?.explode { t = min(1, Float(o.nbr) / Float(dex.max)) }
@@ -195,6 +212,11 @@ struct SceneBuilder {
                     // размеры: полуширина 2.3, наружу торчит на 1.0, вглубь на 14% радиуса (у выключенной — на 10%)
                     var inner = r * 0.86
                     if k < game.probeOff.count && game.probeOff[k] { red.w = 0.45; tip.w = 0.45; inner = r * 0.90 }
+                    if k < game.probeMode.count && game.probeMode[k] == 2 {      // рука в режиме яблок: нашлёпка жёлтая и яркая
+                        red = K.COL_APPLE
+                        tip = red + (SIMD4<Float>(1, 1, 1, 1) - red) * 0.55
+                        inner = r * 0.86
+                    }
                     red.w *= fade; tip.w *= fade
                     let a = atan2(d.y, d.x)
                     rimMark(p.x, p.y, inner: r - 0.5, outer: r + 1.0, angle: a, halfWidth: 2.3, tip)   // светлый, выглядывает наружу
@@ -259,9 +281,11 @@ struct SceneBuilder {
         let zp = screen(zone.x, zone.y, cam: cam)
         let zr = zone.r * scale
         let pulse = 0.5 + 0.5 * sin(game.gfxSpin * 0.4)
+        // закрытый поглотитель (не принесён груз) светится втрое слабее
+        let lit: Float = game.zoneOpen ? 1 : 0.35
         // ярче и насыщеннее прежнего: на фактурном фоне бледное пятно терялось
-        circle(zp.x, zp.y, zr * 1.2, rgba(190, 105, 255, 0.40 + 0.12 * pulse), soft: 1)      // свечение
-        circle(zp.x, zp.y, zr * 0.6, rgba(232, 190, 255, 0.34 + 0.10 * pulse), soft: 1)      // светлая сердцевина
+        circle(zp.x, zp.y, zr * 1.2, rgba(190, 105, 255, (0.40 + 0.12 * pulse) * lit), soft: 1)      // свечение
+        circle(zp.x, zp.y, zr * 0.6, rgba(232, 190, 255, (0.34 + 0.10 * pulse) * lit), soft: 1)      // светлая сердцевина
         for i in 0..<56 {
             let fi = Float(i)
             let sp = 0.25 + Float(i % 7) * 0.05, ph = fi * 1.7
@@ -270,7 +294,24 @@ struct SceneBuilder {
             let rad = zr * (0.22 + 0.98 * (0.5 + 0.5 * sin(game.gfxSpin * (0.4 + Float(i % 5) * 0.16) + ph)))
             let tw = 0.5 + 0.5 * sin(game.gfxSpin * 1.3 + ph)
             let pr: Float = 1.4 + (i % 3 == 0 ? 2.0 : 0.8)
-            circle(zp.x + cos(ang) * rad, zp.y + sin(ang) * rad, pr * scale, rgba(225, 190, 255, 0.25 + 0.50 * tw))
+            circle(zp.x + cos(ang) * rad, zp.y + sin(ang) * rad, pr * scale, rgba(225, 190, 255, (0.25 + 0.50 * tw) * lit))
+        }
+        // что поглотитель принимает: в центре значки яблок. Недостающие — мигающие колечки, принесённые горят ровно.
+        if let a = game.round.apples, !game.winning, !game.won {
+            let have = game.applesHeld
+            let blink = 0.2 + 0.8 * (0.5 + 0.5 * sin(game.gfxSpin * 1.6))
+            let ir = 8 * scale, gap = ir * 2.9
+            for q in 0..<a.need {
+                let x = zp.x + (Float(q) - Float(a.need - 1) / 2) * gap
+                var g = K.COL_APPLE
+                if q < have {
+                    g.w = 0.95
+                    circle(x, zp.y, ir, g)
+                    continue
+                }
+                g.w = blink
+                circle(x, zp.y, ir, g, inner: ir - 1.8)
+            }
         }
         scene.zoneLabel = CGPoint(x: CGFloat(zp.x), y: CGFloat(zp.y - zr - 12))
 
@@ -328,7 +369,7 @@ struct SceneBuilder {
                 }
             }
         }
-        buildZoneArrow(zp: zp)
+        buildZoneArrow(cam: cam)
         buildMinimap(cam: cam)
         return scene
     }
@@ -352,6 +393,7 @@ struct SceneBuilder {
             var col = colFrom + (K.PROBE_COLORS[(blend.to + pr.colorOffset) % K.PROBE_COLORS.count] - colFrom) * blend.t
             col.w = fade                                   // щупальца тают вместе с кораблём
             for j in game.held[s] {
+                if bodies[j].flags & BodyFlag.apple != 0 { continue }     // яблоко рисуется само, жёлтым
                 let ao = rot(game.dx(bodies[j].pos.x, host.pos.x) * scale, game.dy(bodies[j].pos.y, host.pos.y) * scale)
                 let ax = hp.x + ao.x, ay = hp.y + ao.y
                 circle(ax, ay, bodies[j].r * scale + 0.4 + K.ROCK_GROW, col)
@@ -371,6 +413,14 @@ struct SceneBuilder {
                 ring.w = (0.35 + 0.6 * closing) * fade
                 let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
+            }
+            // рука в режиме яблок: на конце жёлтое колечко — пустая ладонь; пойманное яблоко рисуется поверх неё
+            if k < game.probeMode.count && game.probeMode[k] == 2 && hold <= 0 {
+                var palm = K.COL_APPLE
+                palm.w = 0.9 * fade
+                let pr2 = pr.palmR * scale                     // ладонь рисуется в свой настоящий размер
+                circle(tx, ty, pr2, palm, inner: pr2 - 1.4)
+                continue
             }
             // выключенный щуп: ядрышко едва заметным пустым колечком (пока его не начали включать).
             // По направлению ловят все щупы, выключается только стрельба в сторону — ядрышко видно всегда.
@@ -394,13 +444,17 @@ struct SceneBuilder {
 
     /// Компас у корабля: стрелка на кольце вокруг хоста всегда смотрит точно на поглотитель
     /// и плавно гаснет при подлёте к нему. Никаких сдвигов — направление всегда честное.
-    private mutating func buildZoneArrow(zp: SIMD2<Float>) {
+    private mutating func buildZoneArrow(cam: SIMD2<Float>) {
+        // цель: пока поглотитель закрыт — ближайшее свободное яблоко, потом сам поглотитель
+        let target = game.arrowTarget
+        let zp = screen(target.pos.x, target.pos.y, cam: cam)
         let d = zp - SIMD2<Float>(cx, cy)
         let len = simd_length(d)
         if len < 1 { return }
         let dir = d / len
-        // гаснет, когда поглотитель рядом: полностью видна дальше ~350 единиц, пропадает ближе ~190
-        let zr = game.zone.r * scale
+        // гаснет, когда цель рядом: полностью видна дальше ~350 единиц от поглотителя, пропадает ближе ~190;
+        // у яблока — те же расстояния без радиуса поглотителя
+        let zr: Float = target.apple ? 0 : game.zone.r * scale
         let fade = min(1, max(0, (len - (zr + 60 * scale)) / (160 * scale)))
         if fade <= 0 { return }
         let ringR: Float = 70 * scale                                       // чуть дальше от корабля
@@ -409,6 +463,7 @@ struct SceneBuilder {
         let ang = atan2(dir.y, dir.x)
         let halfW: Float = 20, height: Float = 9                            // плоский клин: тупой угол при острие (~118°)
         var ship = rgb("#be78ff")                                           // цвет поглотителя: стрелка указывает на него
+        if target.apple { ship = K.COL_APPLE }                              // ведёт к яблоку — жёлтая, как яблоко
         ship.w = 0.22 * pulse * fade
         circle(center.x, center.y, halfW * 1.5, ship, soft: 1)             // свечение
         ship.w = 0.95 * pulse * fade
@@ -487,6 +542,11 @@ struct SceneBuilder {
         // миникарта повёрнута вместе с видом: направление на поглотитель на ней то же, что на экране
         let zo = rot(game.dx(zone.x, cam.x) * sc, game.dy(zone.y, cam.y) * sc)
         circle(mmc + zo.x, mmm + zo.y, zr, rgba(190, 140, 255, 0.85), inner: zr - 1)
+        for o in game.apples where bodies[o].flags & (BodyFlag.captured | BodyFlag.group) == 0 {
+            let ao = rot(game.dx(bodies[o].pos.x, cam.x) * sc, game.dy(bodies[o].pos.y, cam.y) * sc)
+            if abs(ao.x) > mmS / 2 || abs(ao.y) > mmS / 2 { continue }
+            circle(mmc + ao.x, mmm + ao.y, 2.2, K.COL_APPLE)
+        }
 
         for o in 0..<game.count where bodies[o].type == BodyType.atom {
             let col = bodies[o].isMine ? K.COL_MINE : rgba(138, 160, 189, 0.45)
