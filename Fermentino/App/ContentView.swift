@@ -290,11 +290,11 @@ private struct AimTape: View {
             // метка посередине: неподвижная золотая «блямба», как главная метка на борту корабля —
             // широкая, невысокая, бока прямые, верхний край скруглён дугой
             let gold = Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255)
-            let mw: CGFloat = 4, top = base - 11, bottom = base + 3     // полуширина и края по высоте
+            let mw: CGFloat = 6.5, top = base - 11, bottom = base + 3   // полуширина и края по высоте
             var centre = Path()
             centre.move(to: CGPoint(x: mid - mw, y: bottom))
             centre.addLine(to: CGPoint(x: mid - mw, y: top))
-            centre.addQuadCurve(to: CGPoint(x: mid + mw, y: top), control: CGPoint(x: mid, y: top - 3.5))
+            centre.addQuadCurve(to: CGPoint(x: mid + mw, y: top), control: CGPoint(x: mid, y: top - 4.5))
             centre.addLine(to: CGPoint(x: mid + mw, y: bottom))
             centre.closeSubpath()
             ctx.fill(centre, with: .color(gold))
