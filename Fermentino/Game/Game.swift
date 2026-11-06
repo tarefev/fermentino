@@ -94,7 +94,7 @@ final class Game {
     // ---- ПРОБА: цвет и кнопка по направлению. Щупы стоят через равный угол и вращаются вместе с кораблём,
     // поэтому «сектор» щупа — его номер, сдвинутый на число пройденных шагов. В этом режиме probeOff и
     // нажатия кнопок считаются по секторам (направлениям), а ловят всегда все щупы.
-    private var byDirection: Bool { round.probes?.colorByDirection ?? false }
+    var byDirection: Bool { round.probes?.colorByDirection ?? false }
     private var sectorShift: Int {
         let n = cores[0].slots.count
         if !byDirection || n == 0 { return 0 }
@@ -1071,6 +1071,18 @@ final class Game {
         let gpuT0 = CACurrentMediaTime()
         sim.run(params: makeParams(hSub: h), substeps: substeps)
         statsGpuMs += (CACurrentMediaTime() - gpuT0) * 1000
+
+        // ядрышко на конце щупа стоит намертво, пока его не выстрелили: после каждого шага возвращаем его
+        // точно на место (длина и угол покоя лежат в самом теле) со скоростью конца щупа — удары его не сбивают
+        if let pr = round.probes {
+            let host = bodies[0]
+            for n in nuclei {
+                let a = host.ang + bodies[n].ang, L = bodies[n].angVel
+                let dir = SIMD2<Float>(cos(a), sin(a))
+                bodies[n].pos = host.pos + dir * L
+                bodies[n].vel = host.vel + SIMD2<Float>(-dir.y, dir.x) * (pr.spin * L)
+            }
+        }
 
         for o in 0..<count where bodies[o].type != BodyType.anchor {
             bodies[o].pos.x = Game.wrapCoord(bodies[o].pos.x, K.WORLD_W)

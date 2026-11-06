@@ -257,14 +257,15 @@ struct SceneBuilder {
                 let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
             }
-            // выключенный щуп: ядрышко едва заметным пустым колечком (пока его не начали включать)
-            if isOff && hold <= 0 {
+            // выключенный щуп: ядрышко едва заметным пустым колечком (пока его не начали включать).
+            // По направлению ловят все щупы, выключается только стрельба в сторону — ядрышко видно всегда.
+            if isOff && hold <= 0 && !game.byDirection {
                 var faint = col
                 faint.w = 0.25
                 circle(tx, ty, nr, faint, inner: nr - 1)
                 continue
             }
-            if isOff {
+            if isOff && !game.byDirection {
                 circle(tx, ty, nr, col)
                 continue
             }
