@@ -57,6 +57,7 @@ enum K {
 
     // ---- Интегрирование (§3)
     static let DT: Float = 1.0 / 60.0
+    static let VIEW_ZOOM: Float = 1.2            // зум поля: 1 — как было, 1.2 — всё на 20% крупнее (проба 06.11)
     static let TIME_SCALE: Float = 0.5
     static let SUBSTEPS = 5
     static let MAX_SPEED: Float = 4000

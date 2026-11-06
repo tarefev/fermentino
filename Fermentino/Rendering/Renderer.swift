@@ -12,7 +12,7 @@ import simd
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     let game: Game
-    var scale: Float = 1
+    var scale: Float = K.VIEW_ZOOM
 
     private let commandQueue: MTLCommandQueue
     private let shapeState: MTLRenderPipelineState
