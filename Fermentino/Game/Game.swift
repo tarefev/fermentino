@@ -98,7 +98,7 @@ final class Game {
     private var sectorShift: Int {
         let n = cores[0].slots.count
         if !byDirection || n == 0 { return 0 }
-        return Int((bodies[0].ang / (2 * .pi / Float(n))).rounded())
+        return Int((bodies[0].ang / (2 * .pi / Float(n))).rounded()) + (round.probes?.sectorOffset ?? 0)
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {
@@ -110,7 +110,7 @@ final class Game {
     func probeSectorBlend(_ s: Int) -> (from: Int, to: Int, t: Float) {
         let n = cores[0].slots.count
         if !byDirection || n == 0 { return (s, s, 0) }
-        let pos = Float(s) + bodies[0].ang / (2 * .pi / Float(n))
+        let pos = Float(s + (round.probes?.sectorOffset ?? 0)) + bodies[0].ang / (2 * .pi / Float(n))
         let base = pos.rounded(.down)
         let a = ((Int(base) % n) + n) % n
         return (a, (a + 1) % n, pos - base)
@@ -1293,7 +1293,9 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
-        set(&h.probeArrows, byDirection ? cores[0].slots : [])
+        // стрелка кнопки k — угол щупа, который при нулевом повороте корабля стоит в её секторе
+        let slots = cores[0].slots, off = round.probes?.sectorOffset ?? 0
+        set(&h.probeArrows, byDirection ? (0..<slots.count).map { slots[(($0 - off) % slots.count + slots.count) % slots.count] } : [])
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
