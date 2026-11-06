@@ -287,11 +287,17 @@ private struct AimTape: View {
                 if home { alpha = 1 }
                 ctx.stroke(tick, with: .color(hudText.opacity(alpha * edge)), lineWidth: home ? 1.5 : 1)
             }
-            // метка посередине: неподвижная жирная золотая риска — такая же, как указатель на корабле
+            // метка посередине: неподвижная золотая «блямба», как главная метка на борту корабля —
+            // широкая, невысокая, бока прямые, верхний край скруглён дугой
             let gold = Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255)
+            let mw: CGFloat = 4, top = base - 11, bottom = base + 3     // полуширина и края по высоте
             var centre = Path()
-            centre.move(to: CGPoint(x: mid, y: base - 24)); centre.addLine(to: CGPoint(x: mid, y: base + 8))
-            ctx.stroke(centre, with: .color(gold), style: StrokeStyle(lineWidth: 3, lineCap: .butt))
+            centre.move(to: CGPoint(x: mid - mw, y: bottom))
+            centre.addLine(to: CGPoint(x: mid - mw, y: top))
+            centre.addQuadCurve(to: CGPoint(x: mid + mw, y: top), control: CGPoint(x: mid, y: top - 3.5))
+            centre.addLine(to: CGPoint(x: mid + mw, y: bottom))
+            centre.closeSubpath()
+            ctx.fill(centre, with: .color(gold))
         }
         .contentShape(Rectangle())
         .gesture(
