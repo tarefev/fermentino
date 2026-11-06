@@ -40,6 +40,20 @@ struct Puff {
     var life: Float
 }
 
+/// Волны от выстрела: из точки борта к щупальцу slot расходятся концентрические дуги. Передняя дуга доходит
+/// до ядрышка за delay — в этот момент комок и срывается; дуги идут дальше сквозь него и гаснут.
+struct ShotWave {
+    var slot: Int
+    var strength: Float
+    var out: SIMD2<Float>        // направление на щупальце (мировое); до выстрела следит за щупальцем
+    var t: Float                 // секунд с нажатия
+    var fired = false
+    static let delay: Float = 0.13      // за сколько передняя дуга доходит до ядрышка
+    static let lag: Float = 0.045       // на сколько отстают вторая и третья дуги
+    static let overshoot: Float = 1.8   // докуда дуги идут дальше ядрышка (в расстояниях борт — ядрышко)
+    static let life: Float = delay * overshoot + 2 * lag
+}
+
 struct Star {
     var x: Float
     var y: Float
@@ -185,6 +199,7 @@ final class Game {
     private(set) var assembled = false
     private(set) var roundT: Float = 0
     private(set) var puffs: [Puff] = []
+    private(set) var shotWaves: [ShotWave] = []
     private(set) var stars: [Star] = []
     private var ejectQueue: [EjectRequest] = []
     var showDebug = false
@@ -374,7 +389,7 @@ final class Game {
         count = 0
         cores = []
         ejectQueue = []
-        won = false; winning = false; winMol = []; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []
+        won = false; winning = false; winMol = []; winBannerT = -1; introT = 0; assembled = false; roundT = 0; puffs = []; shotWaves = []
         hud.showWin = false
         hud.winKind = round.win
         hud.introLines = round.intro.map { Strings.t($0) }
@@ -824,20 +839,6 @@ final class Game {
             bodies[j].heat = 1
         }
         bodies[0].vel -= dir * (mass * es / bodies[0].m)
-        // «пук» из борта: из точки корпуса, которая смотрит на щупальце, вылетает облачко в его сторону —
-        // это та сила, что срывает комок с орбиты. Скорости облачка — в мировых единицах за реальную секунду.
-        let host = bodies[0]
-        let toTip = probeTip(s, length: pr.length) - host.pos
-        let tipLen = simd_length(toTip)
-        if tipLen > 0.001 {
-            let out = toTip / tipLen
-            for _ in 0..<7 {
-                let a = Float.random(in: -0.4...0.4)
-                let d = SIMD2<Float>(out.x * cos(a) - out.y * sin(a), out.x * sin(a) + out.y * cos(a))
-                let v = host.vel * K.TIME_SCALE + d * Float.random(in: 45...95)
-                puffs.append(Puff(x: host.pos.x + out.x * host.r, y: host.pos.y + out.y * host.r, vx: v.x, vy: v.y, life: 1))
-            }
-        }
         say("flight.moving")
     }
 
@@ -851,7 +852,26 @@ final class Game {
         let off = probeTip(s, length: pr.length) - bodies[0].pos
         let len = simd_length(off)
         if len < 0.001 { return }
-        throwClump(s, dir: off / len, strength: strength)
+        // нажатие пускает волну из борта; комок срывается, когда она до него дойдёт (см. advanceShotWaves)
+        if probeReload[s] > 0 || shotWaves.contains(where: { $0.slot == s && !$0.fired }) { return }
+        shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0))
+    }
+
+    /// Раз в кадр: волны идут к своим щупальцам; дошла передняя дуга — щупальце стреляет вдоль себя.
+    private func advanceShotWaves(_ dt: Float) {
+        guard let pr = round.probes, !shotWaves.isEmpty else { return }
+        for i in 0..<shotWaves.count {
+            shotWaves[i].t += dt
+            if shotWaves[i].fired { continue }
+            let s = shotWaves[i].slot
+            let off = probeTip(s, length: pr.length) - bodies[0].pos
+            let len = simd_length(off)
+            if len > 0.001 { shotWaves[i].out = off / len }          // пока не выстрелило, волна смотрит на щупальце
+            if shotWaves[i].t < ShotWave.delay { continue }
+            shotWaves[i].fired = true
+            if !probeOff[probeSector(s)] && !winning { throwClump(s, dir: shotWaves[i].out, strength: shotWaves[i].strength) }
+        }
+        shotWaves.removeAll { $0.t >= ShotWave.life }
     }
 
     /// Вариант Б: свайп — стреляет щуп, лучше всего лежащий по направлению свайпа, в сторону свайпа.
@@ -1297,6 +1317,7 @@ final class Game {
         let rawElapsed = Float(now - last); last = now
         introT += rawElapsed
         if !won { roundT += rawElapsed }
+        advanceShotWaves(rawElapsed)
         if !puffs.isEmpty {
             for i in 0..<puffs.count {
                 puffs[i].x += puffs[i].vx * rawElapsed

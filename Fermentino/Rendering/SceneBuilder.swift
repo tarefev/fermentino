@@ -257,6 +257,28 @@ struct SceneBuilder {
             circle(pp.x, pp.y, (2 + 3 * (1 - p.life)) * scale, rgba(150, 220, 255, 0.5 * p.life))
         }
 
+        // волны от выстрела: три тонкие концентрические дуги одна за другой расходятся из точки борта к щупальцу.
+        // Передняя доходит до ядрышка ровно в момент, когда комок срывается; дуги идут дальше сквозь него и гаснут.
+        if let pr = game.round.probes, !game.shotWaves.isEmpty {
+            let host = bodies[0]
+            let hp = screen(host.pos.x, host.pos.y, cam: cam)
+            let dist = (pr.length - host.r) * scale                    // от борта до ядрышка
+            let reach = dist * ShotWave.overshoot
+            for wv in game.shotWaves {
+                let o = rot(wv.out.x, wv.out.y)                        // направление на экране
+                let ox = hp.x + o.x * host.r * scale, oy = hp.y + o.y * host.r * scale
+                let ang = atan2(o.y, o.x)
+                for k in 0..<3 {
+                    let age = wv.t - Float(k) * ShotWave.lag
+                    if age <= 0 { continue }
+                    let rad = dist * age / ShotWave.delay
+                    if rad >= reach { continue }
+                    var col = rgba(207, 230, 255, 0.9 * (1 - rad / reach))
+                    if k > 0 { col.w *= 0.7 }
+                    rimMark(ox, oy, inner: rad - 0.6, outer: rad + 0.6, angle: ang, halfWidth: rad * 0.62, col)
+                }
+            }
+        }
         buildZoneArrow(zp: zp)
         buildMinimap(cam: cam)
         return scene
