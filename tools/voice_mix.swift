@@ -36,6 +36,29 @@ for i in 0..<sfx.count {
     let i0 = Int(pos), fr = Float(pos - Double(i0))
     if i0 + 1 < src.count { sfx[i] = src[i0] * (1 - fr) + src[i0 + 1] * fr }
 }
+// GATE=-42: приглушить в звуке всё, что тише этого уровня (дБ), — ровный шум комнаты между событиями.
+// Иначе при усилении тихой записи её фон превращается в постоянное шипение под всей репликой.
+if let gateDb = Double(ProcessInfo.processInfo.environment["GATE"] ?? "") {
+    let win = Int(sr * 0.02), thr = pow(10, gateDb / 20), floorGain: Float = 0.12
+    var gain = [Float](repeating: floorGain, count: sfx.count)
+    var i = 0
+    while i < sfx.count {
+        let e = min(sfx.count, i + win)
+        var sum = 0.0
+        for k in i..<e { sum += Double(sfx[k] * sfx[k]) }
+        let open = (sum / Double(e - i)).squareRoot() > thr
+        // открытое окно держим ещё 0,12 с после события, чтобы не рубить хвосты
+        if open { for k in max(0, i - win)..<min(sfx.count, e + Int(sr * 0.12)) { gain[k] = 1 } }
+        i = e
+    }
+    // сглаживаем переходы, чтобы шум не включался щелчком
+    var g: Float = floorGain
+    let up: Float = 1 / Float(sr * 0.01), down: Float = 1 / Float(sr * 0.08)
+    for k in 0..<sfx.count {
+        if gain[k] > g { g = min(gain[k], g + up) } else { g = max(gain[k], g - down) }
+        sfx[k] *= g
+    }
+}
 // SFXLIMIT=0.12: мягко срезать редкие резкие пики звука выше этого уровня, чтобы один щелчок не задавал громкость всему
 if let lim = Float(ProcessInfo.processInfo.environment["SFXLIMIT"] ?? "") {
     for i in 0..<sfx.count { sfx[i] = tanh(sfx[i] / lim) * lim }
