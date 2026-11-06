@@ -14,9 +14,13 @@ final class GameSession {
     private(set) var renderer: Renderer?
     var onRestartToStory: (() -> Void)?
 
+    /// Пока true, тур не начинает свой отсчёт: корабль стоит ржавым, реплик нет (игра лежит под девизом).
+    var holdIntro = false { didSet { renderer?.game.introHold = holdIntro } }
+
     func attach(_ view: MTKView) {
         guard renderer == nil else { return }
         renderer = Renderer(view: view, hud: hud)
+        renderer?.game.introHold = holdIntro
         view.delegate = renderer
     }
 

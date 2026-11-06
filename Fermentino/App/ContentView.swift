@@ -20,20 +20,45 @@ private let winButton = Color(red: 0xb9 / 255, green: 0x8b / 255, blue: 1)
 struct ContentView: View {
     @State private var session = GameSession()
     @State private var showPrologue = !Progress.prologueSeen
+    @State private var gameOn = Progress.prologueSeen        // экран игры создан (под прологом или вместо него)
+    @State private var prologueOpacity: Double = 1
+    @State private var prologueLeaving = false               // девиз уже растворяется: повторные тапы не считаются
 
     var body: some View {
         ZStack {
             // чёрная подложка под всем: пока экран игры создаётся и ещё не нарисовал первый кадр,
-            // сквозь него виден фон окна — без подложки он белый, и между девизом и игрой мелькает вспышка
+            // сквозь него виден фон окна — без подложки он белый
             Color.black.ignoresSafeArea()
-            if showPrologue {
-                PrologueView {
-                    Progress.prologueSeen = true
-                    showPrologue = false
-                }
-            } else {
+            if gameOn {
                 gameScreen
-                    .onAppear { session.onRestartToStory = { showPrologue = true } }
+                    .onAppear {
+                        session.onRestartToStory = { gameOn = false; prologueOpacity = 1; showPrologue = true }
+                    }
+            }
+            if showPrologue {
+                // пролог лежит поверх игры: последний экран (девиз) плавно растворяется, под ним проступает игра
+                PrologueView { leavePrologue() }
+                    .opacity(prologueOpacity)
+            }
+        }
+    }
+
+    /// Тап по девизу: игра создаётся под ним и ждёт (ржавый корабль, без реплик), девиз растворяется
+    /// за K.PROLOGUE_FADE секунд, после чего тур начинает свой отсчёт — включение корабля и реплики.
+    private func leavePrologue() {
+        if prologueLeaving { return }
+        prologueLeaving = true
+        Progress.prologueSeen = true
+        session.holdIntro = true
+        gameOn = true
+        // короткая задержка: экран игры успевает создаться и нарисовать первый кадр, растворение не дёргается
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.easeInOut(duration: K.PROLOGUE_FADE)) { prologueOpacity = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + K.PROLOGUE_FADE) {
+                showPrologue = false
+                prologueOpacity = 1
+                prologueLeaving = false
+                session.holdIntro = false
             }
         }
     }

@@ -205,6 +205,8 @@ final class Game {
     private var winMol: [Int] = []
     private var winBannerT: Float = -1
     private(set) var introT: Float = 0
+    /// Отсчёт тура придержан: пока игра проступает из-под девиза, introT стоит на нуле.
+    var introHold = false
     /// «Включение» корабля в начале тура: 0 — ржавый и тёмный, 1 — разгорелся.
     var shipOn: Float {
         let t = (introT - K.SHIP_ON_DELAY) / K.SHIP_ON_TIME
@@ -1382,7 +1384,7 @@ final class Game {
 
     func frame(now: Double) {
         let rawElapsed = Float(now - last); last = now
-        introT += rawElapsed
+        if !introHold { introT += rawElapsed }
         if !won { roundT += rawElapsed }
         advanceShotWaves(rawElapsed)
         if !puffs.isEmpty {
