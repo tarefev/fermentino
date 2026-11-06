@@ -405,7 +405,7 @@ final class Game {
             probeReload = Array(repeating: 0, count: cores[0].slots.count)
             probeOff = Array(repeating: false, count: cores[0].slots.count)
             if let startOn = round.probes?.startOn {
-                for s in 0..<probeOff.count where s >= startOn { probeOff[s] = true }
+                for s in 0..<probeOff.count where !startOn.contains(s) { probeOff[s] = true }
             }
             probePress = Array(repeating: -1, count: cores[0].slots.count)
             bodies[0].kAngle = pr.kAngle
