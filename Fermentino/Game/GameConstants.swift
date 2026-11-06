@@ -81,6 +81,8 @@ enum K {
     static let ARROW_LINE_PAUSE: Float = 1.0      // пауза между погасшей репликой про включение и репликой про стрелку
     static let ARROW_LINE_SHOW: Float = 4.8       // сколько секунд висит реплика про стрелку
     static let NEWTON_LINE_PAUSE: Float = 0.8     // пауза после неё перед репликой про Ньютона
+    static let NEWTON_LINE_TAIL: Float = 1.5      // реплика про Ньютона висит до первого броска и уходит через столько секунд после него
+    static let ROCKS_LINE_AFTER: Float = 5.0      // через сколько секунд после первого броска звучит реплика про камни
     static let CHALK_DELAY: Float = 0.7           // через сколько секунд после реплики про стрелку её обводят «мелом»
     static let PROLOGUE_FADE: Double = 2.0        // за сколько секунд девиз растворяется, открывая игру
     static let POWER_LINE_LEAD: Float = 0.4       // реплика про включение появляется за столько секунд до начала разгорания

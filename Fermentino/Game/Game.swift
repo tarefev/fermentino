@@ -180,11 +180,13 @@ final class Game {
     var controlMode: ControlMode = .buttons
 
     // ---- реплики диспетчерской (обучение)
-    private var narrationQueue: [(text: String, show: Float?)] = []
+    private var narrationQueue: [(text: String, show: Float?, sticky: Bool)] = []
+    private var narrationSticky = false          // текущая реплика висит, пока игрок не сделает первый бросок
+    private var firstThrowAt: Float = -1         // когда игрок впервые нажал кнопку щупальца (по часам тура); −1 — ещё не нажимал
     private var narrationShow: Float?            // сколько секунд висит текущая реплика; nil — по длине текста
     /// Реплики, которые сейчас звучат. Остальные сняты до обсуждения: их места в коде и строки в таблице
     /// остались, чтобы вернуть реплику, достаточно добавить её ключ сюда.
-    private static let activeLines: Set<String> = ["flight.power", "flight.arrow", "flight.newton"]
+    private static let activeLines: Set<String> = ["flight.power", "flight.arrow", "flight.newton", "flight.rocks"]
     /// Обводка стрелки к поглотителю «мелом»: секунды с её начала, −1 — не идёт. Один раз за тур.
     private(set) var chalkT: Float = -1
     private var chalkDone = false
@@ -430,7 +432,7 @@ final class Game {
         hud.introLines = round.intro.map { Strings.t($0) }
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
-        narrationQueue = []; narrationShownAt = -1; narrationShow = nil; said = []
+        narrationQueue = []; narrationShownAt = -1; narrationShow = nil; narrationSticky = false; firstThrowAt = -1; said = []
         chalkT = -1; chalkDone = false
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
@@ -610,10 +612,10 @@ final class Game {
     // MARK: - Реплики по событиям
 
     /// Сказать реплику один раз за раунд (только в турах с нарративом).
-    private func say(_ key: String, show: Float? = nil) {
+    private func say(_ key: String, show: Float? = nil, sticky: Bool = false) {
         guard round.narration, Game.activeLines.contains(key), !said.contains(key) else { return }
         said.insert(key)
-        narrationQueue.append((Strings.t(key), show))
+        narrationQueue.append((Strings.t(key), show, sticky))
     }
 
     private func advanceNarration() {
@@ -624,11 +626,22 @@ final class Game {
         var maxShow = minShow + 2.5
         if let fixed = narrationShow { minShow = fixed; maxShow = fixed }     // реплика с заданным временем показа
         let shown = introT - narrationShownAt
+        // «липкая» реплика висит целиком, пока игрок не сделал первый бросок; после него уходит как обычная
+        if narrationSticky && narrationShownAt >= 0 {
+            if firstThrowAt < 0 {
+                if hud.narrationOpacity != 1 { hud.narrationOpacity = 1 }
+                return
+            }
+            narrationSticky = false
+            narrationShow = shown + K.NEWTON_LINE_TAIL
+            return
+        }
         let hasCurrent = narrationShownAt >= 0 && shown < maxShow
         if !narrationQueue.isEmpty && (!hasCurrent || shown >= minShow) {
             let next = narrationQueue.removeFirst()
             hud.narration = next.text
             narrationShow = next.show
+            narrationSticky = next.sticky
             narrationShownAt = introT
             hud.narrationOpacity = 1
             return
@@ -906,6 +919,7 @@ final class Game {
         // щупальце ещё восстанавливается: волна холостая — слабая и до него не достаёт. Холостые волны
         // просто накладываются: каждое нажатие пускает свою, прежние дорисовываются до конца
         shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0, weak: probeReload[s] > 0))
+        if firstThrowAt < 0 { firstThrowAt = introT }      // первое нажатие: с него отпускаем реплику про Ньютона
     }
 
     /// Раз в кадр: волны идут к своим щупальцам; дошла передняя дуга — щупальце стреляет вдоль себя.
@@ -1450,7 +1464,9 @@ final class Game {
         let arrowAt = K.SHIP_ON_DELAY + K.SHIP_ON_TIME + K.POWER_LINE_TAIL + K.ARROW_LINE_PAUSE
         if introT >= arrowAt { say("flight.arrow", show: K.ARROW_LINE_SHOW) }
         // реплика про Ньютона (как летать) — следом, после короткой паузы
-        if introT >= arrowAt + K.ARROW_LINE_SHOW + K.NEWTON_LINE_PAUSE { say("flight.newton") }
+        if introT >= arrowAt + K.ARROW_LINE_SHOW + K.NEWTON_LINE_PAUSE { say("flight.newton", sticky: true) }
+        // игрок немного полетал после первого броска — говорим, что камни можно ловить и бросок от них сильнее
+        if firstThrowAt >= 0 && introT >= firstThrowAt + K.ROCKS_LINE_AFTER { say("flight.rocks") }
         if round.narration && !chalkDone && introT >= arrowAt + K.CHALK_DELAY { chalkDone = true; chalkT = 0 }
         if chalkT >= 0 {
             chalkT += rawElapsed
