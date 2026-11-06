@@ -56,7 +56,7 @@ vertex ShapeOut shapeVertex(uint vid [[vertex_id]],
     const float2 corner = quadCorners[vid];
     float2 ext = float2(s.radius + 1.0);
     if (s.shape == 1u) ext = s.halfSize;
-    if (s.shape == 3u || s.shape == 4u) ext = float2(s.radius + 2.0);
+    if (s.shape == 3u || s.shape == 4u || s.shape == 5u) ext = float2(s.radius + 2.0);
     const float2 local = corner * ext;
 
     ShapeOut out;
@@ -104,6 +104,19 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
         const float d = max(max(d1, d2), d3);
         const float edge = max(fwidth(d), 0.5);
         a = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape == 5u) {
+        // метка на ободе: кусок кольца между двумя концентрическими дугами (inner и radius) с прямыми
+        // параллельными боками. halfSize = (угол оси, полуширина)
+        const float ang = in.halfSize.x;
+        const float2 axis = float2(cos(ang), sin(ang));
+        const float along = dot(in.local, axis);
+        const float across = abs(dot(in.local, float2(-axis.y, axis.x)));
+        const float d = length(in.local);
+        const float edge = max(fwidth(d), 0.5);
+        a = (1.0 - smoothstep(in.radius - edge, in.radius + edge, d))
+          * smoothstep(in.inner - edge, in.inner + edge, d)
+          * (1.0 - smoothstep(in.halfSize.y - edge, in.halfSize.y + edge, across))
+          * step(0.0, along);
     } else if (in.shape == 2u) {
         // звезда остриём вверх (экранный y вниз → переворачиваем)
         // поворот на угол halfSize.x (звезда крутится вместе с хостом)

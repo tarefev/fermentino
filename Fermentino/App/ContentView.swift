@@ -291,7 +291,7 @@ private struct AimTape: View {
             let gold = Color(red: 1, green: 0xd6 / 255, blue: 0x0a / 255)
             var centre = Path()
             centre.move(to: CGPoint(x: mid, y: base - 24)); centre.addLine(to: CGPoint(x: mid, y: base + 8))
-            ctx.stroke(centre, with: .color(gold), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            ctx.stroke(centre, with: .color(gold), style: StrokeStyle(lineWidth: 3, lineCap: .butt))
         }
         .contentShape(Rectangle())
         .gesture(

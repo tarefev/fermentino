@@ -69,6 +69,19 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
+    /// Метка на ободе: кусок кольца вокруг (x, y) между радиусами inner и outer, с прямыми боками,
+    /// ось смотрит под углом angle, полуширина halfWidth.
+    private mutating func rimMark(_ x: Float, _ y: Float, inner: Float, outer: Float, angle: Float, halfWidth: Float, _ color: SIMD4<Float>) {
+        var s = ShapeInstance()
+        s.center = SIMD2<Float>(x, y)
+        s.radius = outer
+        s.inner = inner
+        s.halfSize = SIMD2<Float>(angle, halfWidth)
+        s.color = color
+        s.shape = 5
+        scene.shapes.append(s)
+    }
+
     private mutating func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float, _ color: SIMD4<Float>) {
         var s = ShapeInstance()
         s.center = SIMD2<Float>(x + w / 2, y + h / 2)
@@ -133,16 +146,15 @@ struct SceneBuilder {
             }
             if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle) }   // герб: золотая звезда
             if c.main && game.byDirection {
-                // указатель: золотая риска изнутри вплотную к борту, чуть торчит наружу — показывает то же
-                // направление, что риска на шкале, то есть куда кидает средняя кнопка.
-                // Рисуем цепочкой кружков: получается ровный штрих со скруглёнными концами под любым углом.
-                let a = game.arrowAngle(game.held.count / 2)
-                let dir = SIMD2<Float>(cos(a), sin(a))
-                let from = r * 0.68, to = r + 2.0, half: Float = 0.9
-                var d = from
-                while d <= to {
-                    circle(p.x + dir.x * d, p.y + dir.y * d, half, rgb("#ffd60a"))
-                    d += 0.5
+                // указатель: золотая метка на борту изнутри. Наружный край — дуга по радиусу корабля (торчит
+                // на волосок), внутренний — дуга чуть меньшего круга, бока прямые, без скруглений.
+                // Показывает то же направление, что риска на шкале, то есть куда кидает средняя кнопка.
+                // Таких меток пять, по одной на направление каждой кнопки: средняя яркая, остальные приглушены.
+                let mid = game.held.count / 2
+                for k in 0..<game.held.count {
+                    var gold = rgb("#ffd60a")
+                    if k != mid { gold.w = 0.45 }
+                    rimMark(p.x, p.y, inner: r * 0.72, outer: r + 0.5, angle: game.arrowAngle(k), halfWidth: 1.5, gold)
                 }
             }
             if n > 0 {
