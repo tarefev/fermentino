@@ -469,7 +469,7 @@ final class Game {
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
         narrationQueue = []; narrationShownAt = -1; narrationShow = nil; narrationSticky = false; firstThrowAt = -1; said = []
-        chalkT = -1; chalkDone = false; shipDoneT = 0; appleTestDone = false
+        chalkT = -1; chalkDone = false; shipDoneT = 0; appleTestDone = false; appleThrowTested = false
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -1017,7 +1017,10 @@ final class Game {
             let dir = probeTip(s, length: pr.length) - bodies[0].pos
             let dl = simd_length(dir)
             if dl < 0.001 { return }
-            shotWaves.append(ShotWave(slot: s, strength: strength, out: dir / dl, t: 0, weak: true))
+            // рука с яблоком: волна настоящая — дойдёт до конца щупальца и выстрелит яблоко (см. throwApple)
+            let loaded = s < probeMode.count && probeMode[s] == 2 && held[s].contains { bodies[$0].flags & BodyFlag.apple != 0 }
+            if loaded && shotWaves.contains(where: { $0.slot == s && !$0.fired && !$0.weak }) { return }
+            shotWaves.append(ShotWave(slot: s, strength: strength, out: dir / dl, t: 0, weak: !loaded))
             return
         }
         // по направлению: кнопка стреляет щупом, который сейчас в её секторе, вдоль него самого —
@@ -1033,6 +1036,21 @@ final class Game {
         // просто накладываются: каждое нажатие пускает свою, прежние дорисовываются до конца
         shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0, weak: probeReload[s] > 0))
         if firstThrowAt < 0 { firstThrowAt = introT }      // первое нажатие: с него отпускаем реплику про Ньютона
+    }
+
+    /// Рука в режиме яблок стреляет своим яблоком вдоль себя, сильно; корабль получает равный обратный импульс.
+    private func throwApple(_ s: Int, dir: SIMD2<Float>) {
+        guard let pr = round.probes, s < held.count else { return }
+        let cargo = held[s].filter { bodies[$0].flags & BodyFlag.apple != 0 }
+        if cargo.isEmpty { return }
+        var momentum: Float = 0
+        for j in cargo {
+            bodies[j].vel = bodies[0].vel + dir * pr.appleThrow
+            bodies[j].heat = 1                      // только что выстрелено: рука не хватает его тут же обратно
+            momentum += bodies[j].m * pr.appleThrow
+        }
+        bodies[0].vel -= dir * (momentum / bodies[0].m)
+        releaseProbe(s)
     }
 
     /// Раз в кадр: волны идут к своим щупальцам; дошла передняя дуга — щупальце стреляет вдоль себя.
@@ -1088,6 +1106,7 @@ final class Game {
             if shotWaves[i].t < ShotWave.delay { continue }
             shotWaves[i].fired = true
             if !probeOff[probeSector(s)] && !winning { throwClump(s, dir: shotWaves[i].out, strength: shotWaves[i].strength) }
+            if s < probeMode.count, probeMode[s] == 2, !winning { throwApple(s, dir: shotWaves[i].out) }
         }
         shotWaves.removeAll { $0.t >= $0.life }
     }
@@ -1370,6 +1389,7 @@ final class Game {
     private var fieldStatsTick = 0
     private var labSeed: UInt32 = 0
     private var appleTestDone = false
+    private var appleThrowTested = false
 
     /// Плотный ком тел данного типа (≥ ex.max соседей) случайно разлетается пачками.
     private func burst(type: UInt32, ex: ExplodeDef, dt: Float) {
@@ -1462,6 +1482,16 @@ final class Game {
                 let dir = SIMD2<Float>(cos(a), sin(a))
                 bodies[n].pos = host.pos + dir * L
                 bodies[n].vel = host.vel + SIMD2<Float>(-dir.y, dir.x) * (pr.spin * L)
+            }
+            // схваченное яблоко сидит в самой середине руки: за доли секунды съезжает в конец щупальца
+            // и дальше движется вместе с ним
+            for s in 0..<held.count where s < probeMode.count && probeMode[s] == 2 && s < nuclei.count {
+                let n = nuclei[s]
+                for j in held[s] where bodies[j].flags & BodyFlag.apple != 0 && !bodies[j].isCaptured {
+                    let gap = SIMD2<Float>(dx(bodies[n].pos.x, bodies[j].pos.x), dy(bodies[n].pos.y, bodies[j].pos.y))
+                    bodies[j].pos += gap * min(1, dt * 14)
+                    bodies[j].vel = bodies[n].vel
+                }
             }
         }
 
@@ -1607,6 +1637,7 @@ final class Game {
                 bodies[apples[k]].vel = bodies[0].vel
             }
         }
+        if Lab.appleTest && !winTest && introT > 10 && !appleThrowTested { appleThrowTested = true; throwProbe(1) }
         // отладка (FERM_WINTEST=1): корабль вместе со всем, что держит, переносится в поглотитель
         if winTest && introT > (Lab.appleTest ? 16 : 6) && !winning && !won {
             let delta = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y) - bodies[0].pos

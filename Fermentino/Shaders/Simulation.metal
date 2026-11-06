@@ -124,7 +124,9 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         float fnet = gOn * pairSign * p.G * gA * gB / (r2 + p.EPS2) * gravTaper(r, p);
 
         const float contact = A.r + B.r;
-        if (r < contact) {
+        // яблоко и кончик щупальца не сталкиваются: схваченное яблоко сидит прямо в нём, в середине руки
+        const bool appleTip = (aApple && B.type == BODY_TIP) || (bApple && A.type == BODY_TIP);
+        if (r < contact && !appleTip) {
             const float mu = mm / (A.m + B.m);
             fnet -= p.K_REP * mu * (contact - r);
             // хост при захвате по щупам отбивает ИНЕРТОНЫ упруго (не налипают на шар);
