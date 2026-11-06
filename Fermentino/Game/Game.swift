@@ -105,6 +105,16 @@ final class Game {
         let n = cores[0].slots.count
         return n == 0 ? s : ((s + sectorShift) % n + n) % n
     }
+    /// Положение щупа s между секторами: целая часть — сектор, из которого он выходит, дробная — насколько
+    /// он уже перешёл в следующий. По нему цвет щупа плавно перетекает из одного оттенка в другой.
+    func probeSectorBlend(_ s: Int) -> (from: Int, to: Int, t: Float) {
+        let n = cores[0].slots.count
+        if !byDirection || n == 0 { return (s, s, 0) }
+        let pos = Float(s) + bodies[0].ang / (2 * .pi / Float(n))
+        let base = pos.rounded(.down)
+        let a = ((Int(base) % n) + n) % n
+        return (a, (a + 1) % n, pos - base)
+    }
     /// Щуп, который сейчас в секторе k.
     func sectorProbe(_ k: Int) -> Int {
         let n = cores[0].slots.count

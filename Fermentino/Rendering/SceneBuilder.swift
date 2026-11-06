@@ -232,7 +232,10 @@ struct SceneBuilder {
         for s in 0..<game.held.count {
             guard s < game.nuclei.count else { continue }
             let k = game.probeSector(s)                  // цвет, кнопка и «выключено» — по сектору, где щуп сейчас
-            var col = K.PROBE_COLORS[k % K.PROBE_COLORS.count]
+            // цвет перетекает плавно: между центрами соседних секторов — смесь двух оттенков
+            let blend = game.probeSectorBlend(s)
+            let colFrom = K.PROBE_COLORS[blend.from % K.PROBE_COLORS.count]
+            var col = colFrom + (K.PROBE_COLORS[blend.to % K.PROBE_COLORS.count] - colFrom) * blend.t
             for j in game.held[s] {
                 let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
                 let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
