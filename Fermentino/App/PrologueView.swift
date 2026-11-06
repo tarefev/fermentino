@@ -8,7 +8,6 @@
 
 import SwiftUI
 
-private let prologueText = Color(red: 0xcf / 255, green: 0xe6 / 255, blue: 1)
 private let prologueLine = Color(red: 0xf4 / 255, green: 0xec / 255, blue: 0xdc / 255)   // реплики на кадрах: тёплый белый, под бумагу
 
 struct PrologueView: View {
@@ -53,11 +52,15 @@ struct PrologueView: View {
                         .padding(.bottom, 64)              // вся плашка поднята от нижнего края
                 } else {
                     Spacer()
+                    // девиз: тот же Russo One и тот же тёплый белый, что у реплик на кадрах, но крупнее и по центру
                     Text(Strings.t(frame.key))
-                        .font(.system(size: 20, weight: .bold, design: .monospaced))
-                        .foregroundStyle(prologueText)
+                        .font(.custom("RussoOne-Regular", size: 22))
+                        .foregroundStyle(prologueLine)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                        .lineSpacing(16)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)           // длинная строка ужимается, а не переносится
+                        .padding(.horizontal, 24)
                     Spacer()
                 }
             }
