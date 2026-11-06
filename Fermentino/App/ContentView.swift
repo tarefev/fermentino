@@ -359,6 +359,14 @@ private struct ProbeControls: View {
         Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
     ]
     private let buttonSize: CGFloat = 54
+    private let sideInset: CGFloat = 12            // поля ряда кнопок по бокам (см. padding внизу body)
+    private let bottomInset: CGFloat = 18          // отступ ряда от безопасной зоны снизу
+    /// Сколько от низа кнопки до самого края экрана: отступ ряда плюс полоса под «домашней» чертой.
+    private var floorGap: CGFloat {
+        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        let inset = scene?.windows.first?.safeAreaInsets.bottom ?? 0
+        return bottomInset + inset
+    }
     @State private var pressed: Set<Int> = []      // какие кнопки щупов сейчас под пальцем
     @State private var starTurn: Double = 0        // градусы: поворот звезды секторов ползунком, от −180 до +180
 
@@ -405,14 +413,17 @@ private struct ProbeControls: View {
                         // от почти пустой до той яркости, с какой стоит готовая с одним ядрышком
                         let charge = s < hud.probeCharge.count ? Double(hud.probeCharge[s]) : 1
                         let charging = !off && charge < 1
-                        let ready = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
-                        let bright = charging ? 0.06 + 0.19 * charge : ready
+                        // яркость заливки: с одним своим камнем — base, с полным щупальцем — 1, то есть ровно цвет
+                        // обводки: полная кнопка выглядит сплошным кружком
+                        let base = 0.15 + 0.85 * 0.2
+                        let ready = fill > 0 ? 0.15 + 0.85 * Double(fill) : (off ? base : 0.06)
+                        let bright = charging ? 0.06 + (base - 0.06) * charge : ready
                         // пока кнопки не выданы (профессор ещё не сказал про них), ряд стоит бледными пустыми
                         // кружками и не нажимается; на реплике про кнопку они плавно набирают обычный вид
                         let live: Double = hud.probeLocked ? 0 : 1
                         Circle()
                             .fill(col.opacity(bright * on * live))
-                            .overlay(Circle().stroke(col.opacity((0.2 + 0.35 * on) * (0.3 + 0.7 * live)), lineWidth: 2))
+                            .overlay(Circle().stroke(col.opacity((0.2 + 0.8 * on) * (0.2 + 0.8 * live)), lineWidth: 2))
                             .animation(.easeOut(duration: 0.6), value: hud.probeLocked)
                             // кнопка по направлению: стрелка показывает, куда она стреляет
                             .overlay {
@@ -427,6 +438,12 @@ private struct ProbeControls: View {
                             }
                             .frame(width: buttonSize, height: buttonSize)
                             .frame(maxWidth: .infinity)
+                            // закон Фиттса: нажимается не кружок, а вся полоса под ним и вокруг. Низ экрана
+                            // поделён на пять колонок от края до края; каждая идёт от самого пола вверх и
+                            // кончается над кнопкой на таком же расстоянии, какое от кнопки до пола
+                            .padding(.vertical, floorGap)
+                            .padding(.leading, s == 0 ? sideInset : 0)
+                            .padding(.trailing, s == hud.probeFill.count - 1 ? sideInset : 0)
                             .contentShape(Rectangle())
                             // касание и отпускание ловим сами: короткое — выстрел, удержание — выключить / включить щуп
                             .gesture(
@@ -438,15 +455,19 @@ private struct ProbeControls: View {
                                         pressed.remove(s); session.pressEnded(s)
                                     }
                             )
+                            // область нажатия шире самой кнопки, но место в ряду кнопка занимает прежнее
+                            .padding(.vertical, -floorGap)
+                            .padding(.leading, s == 0 ? -sideInset : 0)
+                            .padding(.trailing, s == hud.probeFill.count - 1 ? -sideInset : 0)
                     }
                 } else {
                     Spacer()
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, sideInset)
         .padding(.top, 6)
-        .padding(.bottom, 18)
+        .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }

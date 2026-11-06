@@ -137,7 +137,7 @@ struct SceneBuilder {
             var t: Float = 0
             if let dex = game.round.dust?.explode { t = min(1, Float(o.nbr) / Float(dex.max)) }
             var col = mixCol(K.COL_ATOM, max(o.heat, t)); col.w = 0.7
-            circle(p.x, p.y, r, col)
+            circle(p.x, p.y, r + K.ROCK_GROW, col)
             return
         }
         if o.type == BodyType.anchor {
@@ -354,7 +354,7 @@ struct SceneBuilder {
             for j in game.held[s] {
                 let ao = rot(game.dx(bodies[j].pos.x, host.pos.x) * scale, game.dy(bodies[j].pos.y, host.pos.y) * scale)
                 let ax = hp.x + ao.x, ay = hp.y + ao.y
-                circle(ax, ay, bodies[j].r * scale + 0.4, col)
+                circle(ax, ay, bodies[j].r * scale + 0.4 + K.ROCK_GROW, col)
             }
             let n = game.nuclei[s]
             let to = rot(game.dx(bodies[n].pos.x, host.pos.x) * scale, game.dy(bodies[n].pos.y, host.pos.y) * scale)
@@ -388,7 +388,7 @@ struct SceneBuilder {
             var reload: Float = 0
             if s < game.probeReload.count, pr.reload > 0 { reload = game.probeReload[s] / pr.reload }
             if game.controlsLocked { continue }             // кнопки ещё не выданы — камня на щупальце нет вовсе
-            circle(tx, ty, max(0.4, nr * (1 - reload)), col)
+            circle(tx, ty, max(0.4, (nr + K.ROCK_GROW) * (1 - reload)), col)
         }
     }
 

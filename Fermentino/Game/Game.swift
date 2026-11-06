@@ -832,6 +832,7 @@ final class Game {
     /// Кнопку щупа s нажали: начинаем отсчёт долгого нажатия.
     func pressBegan(_ s: Int) {
         guard probesOn, !controlsLocked, s >= 0, s < probePress.count else { return }
+        if statsOn { print("PRESS \(s)") }       // отладка (FERM_STATS=1): какая кнопка поймала касание
         probePress[s] = 0
     }
 
@@ -913,7 +914,17 @@ final class Game {
     func throwProbe(_ s: Int, strength: Float = 1) {
         guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
         if controlsLocked { return }                       // кнопки ещё не выданы
-        if probeOff[s] { return }                          // выключенный щуп (или направление) не реагирует
+        if probeOff[s] {
+            // выключенное щупальце: кнопка живая, но бросать нечем — из её нашлёпки выходит холостая волна.
+            // Камня на щупальце от этого не появляется; волна слегка толкает серые камни, как обычная холостая.
+            // По направлению выключенная кнопка по-прежнему молчит.
+            if byDirection { return }
+            let dir = probeTip(s, length: pr.length) - bodies[0].pos
+            let dl = simd_length(dir)
+            if dl < 0.001 { return }
+            shotWaves.append(ShotWave(slot: s, strength: strength, out: dir / dl, t: 0, weak: true))
+            return
+        }
         // по направлению: кнопка стреляет щупом, который сейчас в её секторе, вдоль него самого —
         // стрелка на кнопке в этот момент показывает ровно туда же
         let s = sectorProbe(s)
