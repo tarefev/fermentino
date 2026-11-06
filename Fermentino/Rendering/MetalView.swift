@@ -71,6 +71,7 @@ struct MetalView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TouchMTKView {
         let view = TouchMTKView(frame: .zero)
+        view.backgroundColor = .black        // до первого кадра экран чёрный, а не белый
         view.framebufferOnly = true
         view.isMultipleTouchEnabled = false
         session.attach(view)

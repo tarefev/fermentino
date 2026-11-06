@@ -22,14 +22,19 @@ struct ContentView: View {
     @State private var showPrologue = !Progress.prologueSeen
 
     var body: some View {
-        if showPrologue {
-            PrologueView {
-                Progress.prologueSeen = true
-                showPrologue = false
+        ZStack {
+            // чёрная подложка под всем: пока экран игры создаётся и ещё не нарисовал первый кадр,
+            // сквозь него виден фон окна — без подложки он белый, и между девизом и игрой мелькает вспышка
+            Color.black.ignoresSafeArea()
+            if showPrologue {
+                PrologueView {
+                    Progress.prologueSeen = true
+                    showPrologue = false
+                }
+            } else {
+                gameScreen
+                    .onAppear { session.onRestartToStory = { showPrologue = true } }
             }
-        } else {
-            gameScreen
-                .onAppear { session.onRestartToStory = { showPrologue = true } }
         }
     }
 
