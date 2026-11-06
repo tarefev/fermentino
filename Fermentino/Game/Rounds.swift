@@ -217,7 +217,7 @@ enum Rounds {
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
             // «заряд»: пойманный камень отталкивает свободные в полную силу (heldGravity 1), а конец щупальца
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
-            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true),
+            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200),
             substeps: 3                     // 600 зёрен: три подшага устойчивы и на 40% дешевле пяти
         ),
         RoundDef(
@@ -256,7 +256,7 @@ enum Rounds {
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
             // три руки: средняя летает на камнях, две соседние стоят в режиме яблок. Долгое нажатие листает
             // режимы по кругу: камни → выключено → яблоки
-            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, startApple: [1, 3], appleMode: true),
+            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [1, 3], appleMode: true),
             substeps: 3,
             // пять яблок вокруг старта; поглотитель принимает корабль, только когда два из них в руках
             apples: AppleDef(n: 5, need: 2, r: 5, mass: 600, minDist: 450, maxDist: 1000)
