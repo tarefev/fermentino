@@ -1265,6 +1265,8 @@ final class Game {
         set(&h.probeFill, (0..<held.count).map { s -> Float in
             // щуп может выстрелить — показываем, сколько на нём: одно своё ядрышко уже заметно, 12 зёрен — полная
             let p = sectorProbe(s)
+            // по направлению кнопка стоит неподвижно: одна ровная яркость, что бы ни проезжало через её сектор
+            if byDirection { return probeOff[s] ? 0 : 0.6 }
             guard let pr = round.probes, !probeOff[s], probeReload[p] <= 0 else { return 0 }
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
