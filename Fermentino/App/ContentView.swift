@@ -432,7 +432,7 @@ private struct NarrationView: View {
                 .padding(.horizontal, 28)
                 .opacity(hud.narrationOpacity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .offset(y: -150)
+                .offset(y: -205)          // выше центра: реплика стоит сразу под мини-картой, выше она бы на неё наехала
                 .allowsHitTesting(false)
         }
     }
