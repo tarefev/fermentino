@@ -154,7 +154,7 @@ struct SceneBuilder {
                 for k in 0..<game.held.count {
                     var gold = rgb("#ffd60a")
                     if k != mid { gold.w = 0.45 }
-                    rimMark(p.x, p.y, inner: r * 0.72, outer: r + 0.5, angle: game.arrowAngle(k), halfWidth: 1.5, gold)
+                    rimMark(p.x, p.y, inner: r * 0.905, outer: r + 0.5, angle: game.arrowAngle(k), halfWidth: 1.5, gold)   // втрое ниже прежней
                 }
             }
             if n > 0 {
