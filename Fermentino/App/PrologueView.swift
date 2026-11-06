@@ -9,6 +9,7 @@
 import SwiftUI
 
 private let prologueText = Color(red: 0xcf / 255, green: 0xe6 / 255, blue: 1)
+private let prologueLine = Color(red: 0xf4 / 255, green: 0xec / 255, blue: 0xdc / 255)   // реплики на кадрах: тёплый белый, под бумагу
 
 struct PrologueView: View {
     let onFinish: () -> Void
@@ -41,7 +42,7 @@ struct PrologueView: View {
                     Text(Strings.t(frame.key))
                         // Russo One: широкий рубленый шрифт советского плакатного склада, с кириллицей
                         .font(.custom("RussoOne-Regular", size: 16))
-                        .foregroundStyle(prologueText)
+                        .foregroundStyle(prologueLine)
                         .multilineTextAlignment(.leading)   // прижат к левому краю, не по центру
                         .lineSpacing(9)
                         .shadow(color: .black, radius: 8, y: 2)
