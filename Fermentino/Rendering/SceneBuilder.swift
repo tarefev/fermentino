@@ -417,7 +417,7 @@ struct SceneBuilder {
             // рука в режиме яблок: на конце жёлтое колечко — пустая ладонь; пойманное яблоко рисуется поверх неё
             if k < game.probeMode.count && game.probeMode[k] == 2 && hold <= 0 {
                 var palm = K.COL_APPLE
-                palm.w = 0.9 * fade
+                palm.w = 0.45 * fade                          // полупрозрачное: колечко не должно спорить с яблоками
                 // колечко чуть крупнее обычного кончика щупальца; хватает ладонь шире, чем нарисована (pr.palmR)
                 circle(tx, ty, nr + 1.3, palm, inner: nr - 0.1)
                 continue
