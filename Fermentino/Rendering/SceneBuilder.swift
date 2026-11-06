@@ -185,11 +185,12 @@ struct SceneBuilder {
                     var red = K.COL_RIVET
                     // кусочек, торчащий за борт, — тот же красный, сильно разбавленный белым: на тёмном фоне его видно
                     var tip = red + (SIMD4<Float>(1, 1, 1, 1) - red) * 0.55
-                    var inner = r * 0.905
-                    if k < game.probeOff.count && game.probeOff[k] { red.w = 0.45; tip.w = 0.45; inner = r * 0.935 }
+                    // размеры: полуширина 2.3, наружу торчит на 1.0, вглубь на 14% радиуса (у выключенной — на 10%)
+                    var inner = r * 0.86
+                    if k < game.probeOff.count && game.probeOff[k] { red.w = 0.45; tip.w = 0.45; inner = r * 0.90 }
                     let a = atan2(d.y, d.x)
-                    rimMark(p.x, p.y, inner: r - 0.5, outer: r + 0.5, angle: a, halfWidth: 1.5, tip)   // светлый, выглядывает наружу
-                    rimMark(p.x, p.y, inner: inner, outer: r, angle: a, halfWidth: 1.5, red)            // красный, внутри борта
+                    rimMark(p.x, p.y, inner: r - 0.5, outer: r + 1.0, angle: a, halfWidth: 2.3, tip)   // светлый, выглядывает наружу
+                    rimMark(p.x, p.y, inner: inner, outer: r, angle: a, halfWidth: 2.3, red)            // красный, внутри борта
                 }
             }
             if c.main && game.byDirection {
