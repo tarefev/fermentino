@@ -587,7 +587,7 @@ final class Game {
 
         computeBody()
         updateMine()
-        say("flight.start")
+        say("flight.power")          // первая реплика тура: профессор включает корабль (см. shipOn)
     }
 
     // MARK: - Реплики по событиям
@@ -1408,6 +1408,7 @@ final class Game {
         advancePresses(rawElapsed)
         updateStarMirror()
         for s in 0..<probePulse.count where probePulse[s] > 0 { probePulse[s] = max(0, probePulse[s] - rawElapsed / 0.28) }
+        if shipOn >= 1 { say("flight.start") }     // задание звучит, когда корабль разгорелся: реплика про включение висит всё это время
         advanceNarration()
 
         fpsAcc += rawElapsed; fpsFrames += 1
