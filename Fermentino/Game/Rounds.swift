@@ -166,8 +166,8 @@ enum Rounds {
             id: "flight", win: .reachZone,
             spawn: [],
             elements: [
-                // голая капсула первого тура: одно щупальце (остальные и удобства управления — комплектующие на потом)
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90], kAngle: 300, control: "player", emblem: "ussr"),
+                // пять щупалец по лучам звезды: пять одинаковых ядрышек уравновешивают друг друга, корабль не болтает
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: rgb("#cc1414"), r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -184,12 +184,13 @@ enum Rounds {
             dust: DustDef(n: 600, rMin: 1.95, rMax: 1.95, density: 40, minHostDist: 90, avoidZone: true,
                           splitAbove: 24),          // масса зерна ~150; комок больше 24 зёрен делится пополам
             ejectSpeed: 3300,               // отдача в 2.2 раза сильнее базовой: кораблём иначе не управлять
-            // одна кнопка стреляет одним щупальцем туда, где оно сейчас; цвет — как у средней кнопки полного набора.
+            // кнопка стреляет своим щупальцем туда, где оно сейчас. На старте включено одно, среднее; остальные
+            // четыре выключены, игрок может включить их долгим нажатием, если догадается.
             // Управление по направлению (пять щупалец, стрелки, шкала с поворотом вида) было настроено так:
             // colorByDirection: true, arrowBase: 234°, arrowStep: −72°, sectorTilt: −14° — вернётся комплектующими.
             // ядрышко втрое тяжелее зерна (150 → 450): одиночный выстрел пустым щупальцем даёт заметный толчок.
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
-            probes: ProbeDef(tipMass: 450, colorOffset: 2),
+            probes: ProbeDef(tipMass: 450, startOn: [2]),
             substeps: 3                     // 600 зёрен: три подшага устойчивы и на 40% дешевле пяти
         ),
         RoundDef(
