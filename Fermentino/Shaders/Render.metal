@@ -40,6 +40,29 @@ inline float sdStar5(float2 p, float r, float rf)
     return length(p - ba * h) * sign(p.y * ba.x - p.x * ba.y);
 }
 
+// шум для ржавчины на корпусе корабля: хеш → плавный шум → четыре октавы
+inline float hullHash(float2 p)
+{
+    return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
+}
+
+inline float hullNoise(float2 p)
+{
+    const float2 i = floor(p);
+    float2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    const float a = hullHash(i), b = hullHash(i + float2(1.0, 0.0));
+    const float c = hullHash(i + float2(0.0, 1.0)), d = hullHash(i + float2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+inline float hullFbm(float2 p)
+{
+    float sum = 0.0, amp = 0.5;
+    for (int k = 0; k < 4; ++k) { sum += amp * hullNoise(p); amp *= 0.5; p *= 2.1; }
+    return sum;
+}
+
 inline float4 toNDC(float2 pt, constant FrameUniforms &u)
 {
     float2 ndc = pt / u.viewSize * 2.0 - 1.0;
@@ -117,6 +140,39 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
           * smoothstep(in.inner - edge, in.inner + edge, d)
           * (1.0 - smoothstep(in.halfSize.y - edge, in.halfSize.y + edge, across))
           * step(0.0, along);
+    } else if (in.shape == 6u) {
+        // корпус корабля: ржавый железный шар со швами и заклёпками. halfSize = (угол поворота корабля,
+        // сила ржавчины 0…1). При силе 0 это ровный круг цвета color — корабль «включился».
+        const float d = length(in.local);
+        const float edge = max(fwidth(d), 0.5);
+        a = 1.0 - smoothstep(in.radius - edge, in.radius + edge, d);
+        const float k = in.halfSize.y;
+        if (k > 0.0) {
+            const float sa = in.halfSize.x;
+            const float sc = cos(sa), ss = sin(sa);
+            // q — точка в долях радиуса, в осях корабля: рисунок вращается вместе с ним
+            const float2 q = float2(sc * in.local.x + ss * in.local.y, -ss * in.local.x + sc * in.local.y) / in.radius;
+            const float qd = length(q);
+            float3 col = rgb;
+            // рыжие разводы ржавчины
+            const float n = hullFbm(q * 3.2 + float2(7.0, 3.0));
+            col = mix(col, float3(0.604, 0.298, 0.125), saturate((n - 0.45) * 2.5));
+            // объём: борт темнее, сверху слева блик (свет неподвижен, с кораблём не вращается)
+            col *= 1.0 - 0.5 * qd * qd * qd;
+            const float ht = saturate(1.0 - length(in.local / in.radius - float2(-0.32, -0.34)) / 0.75);
+            col = mix(col, float3(0.690, 0.478, 0.333), 0.4 * ht * ht);
+            // швы: кольцевой и крест внутри него; не тоньше полутора пикселей
+            const float w = max(0.035, 0.5 / in.radius);
+            float seam = abs(qd - 0.74);
+            if (qd < 0.74) seam = min(seam, min(abs(q.x), abs(q.y)));
+            col = mix(col, float3(0.141, 0.075, 0.047), saturate(1.0 - seam / w));
+            // двенадцать заклёпок по борту
+            const float seg = M_PI_F / 6.0;
+            const float ra = (floor(atan2(q.y, q.x) / seg) + 0.5) * seg;
+            const float rv = length(q - 0.87 * float2(cos(ra), sin(ra)));
+            col = mix(col, float3(0.851, 0.647, 0.486), saturate(1.0 - rv / 0.055));
+            rgb = mix(rgb, col, k);
+        }
     } else if (in.shape == 2u) {
         // звезда остриём вверх (экранный y вниз → переворачиваем)
         // поворот на угол halfSize.x (звезда крутится вместе с хостом)

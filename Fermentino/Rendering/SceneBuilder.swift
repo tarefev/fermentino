@@ -78,6 +78,18 @@ struct SceneBuilder {
         scene.shapes.append(s)
     }
 
+    /// Корпус корабля: железный шар со швами, заклёпками и ржавчиной, рисунок повёрнут на angle.
+    /// rust — сила ржавчины: 1 — ржавый, 0 — ровный круг цвета color.
+    private mutating func hull(_ x: Float, _ y: Float, _ r: Float, _ color: SIMD4<Float>, angle: Float, rust: Float) {
+        var s = ShapeInstance()
+        s.center = SIMD2<Float>(x, y)
+        s.radius = r
+        s.halfSize = SIMD2<Float>(angle, rust)
+        s.color = color
+        s.shape = 6
+        scene.shapes.append(s)
+    }
+
     /// Метка на ободе: кусок кольца вокруг (x, y) между радиусами inner и outer, с прямыми боками,
     /// ось смотрит под углом angle, полуширина halfWidth.
     private mutating func rimMark(_ x: Float, _ y: Float, inner: Float, outer: Float, angle: Float, halfWidth: Float, _ color: SIMD4<Float>) {
@@ -148,18 +160,12 @@ struct SceneBuilder {
             var glow = col; glow.w = 0.55
             if c.main { glow.w = 0.12 + 0.5 * on }          // ржавый почти не светится, свечение приходит с включением
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
-            circle(p.x, p.y, r, col)
             if c.main {
-                // ржавчина: тёмные и рыжие пятна на корпусе, вращаются вместе с кораблём; с включением
-                // исчезают полностью — включённый корабль ровный белый шар
-                for b in K.RUST where on < 1 {
-                    let a = o.ang + b.ang * .pi / 180
-                    let d = rot(cos(a) * b.dist * r, sin(a) * b.dist * r)
-                    var rc = b.col
-                    rc.w = 0.9 * (1 - on)
-                    circle(p.x + d.x, p.y + d.y, b.r * r, rc, soft: 1)
-                }
+                // пока корабль не включился, он ржавый: швы, заклёпки и разводы вращаются вместе с ним;
+                // с включением всё это сходит на нет — остаётся ровный белый шар
+                hull(p.x, p.y, r, col, angle: o.ang, rust: 1 - on)
             }
+            if !c.main { circle(p.x, p.y, r, col) }
             var starAngle: Float = 0
             if game.probesOn { starAngle = o.ang }                                   // лучи звезды смотрят вдоль щупов
             if game.byDirection {
