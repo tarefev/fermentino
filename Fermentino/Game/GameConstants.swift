@@ -77,6 +77,8 @@ enum K {
     static let COL_RIVET = COL_EMBLEM             // нашлёпки на борту — красные, как звезда
     static let SHIP_ON_DELAY: Float = 1.2         // сколько секунд корабль стоит ржавым
     static let SHIP_ON_TIME: Float = 3.5          // за сколько секунд разгорается
+    static let POWER_LINE_LEAD: Float = 0.4       // реплика про включение появляется за столько секунд до начала разгорания
+    static let POWER_LINE_TAIL: Float = 1.1       // и гаснет через столько секунд после того, как корабль разгорелся
     static let COL_ANCHOR = rgb("#7a6a5c")
     static let COL_ANCHOR_EDGE = rgb("#b8a48f")
     static let RGB_HOT = SIMD4<Float>(235 / 255, 80 / 255, 60 / 255, 1)

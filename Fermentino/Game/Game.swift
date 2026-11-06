@@ -180,7 +180,11 @@ final class Game {
     var controlMode: ControlMode = .buttons
 
     // ---- реплики диспетчерской (обучение)
-    private var narrationQueue: [String] = []
+    private var narrationQueue: [(text: String, show: Float?)] = []
+    private var narrationShow: Float?            // сколько секунд висит текущая реплика; nil — по длине текста
+    /// Реплики, которые сейчас звучат. Остальные сняты до обсуждения: их места в коде и строки в таблице
+    /// остались, чтобы вернуть реплику, достаточно добавить её ключ сюда.
+    private static let activeLines: Set<String> = ["flight.power"]
     private var narrationShownAt: Float = -1
     private var said: Set<String> = []
     private var elements: [String: ElementDef] = [:]
@@ -413,7 +417,7 @@ final class Game {
         hud.introLines = round.intro.map { Strings.t($0) }
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
-        narrationQueue = []; narrationShownAt = -1; said = []
+        narrationQueue = []; narrationShownAt = -1; narrationShow = nil; said = []
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -587,28 +591,30 @@ final class Game {
 
         computeBody()
         updateMine()
-        say("flight.power")          // первая реплика тура: профессор включает корабль (см. shipOn)
     }
 
     // MARK: - Реплики по событиям
 
     /// Сказать реплику один раз за раунд (только в турах с нарративом).
-    private func say(_ key: String) {
-        guard round.narration, !said.contains(key) else { return }
+    private func say(_ key: String, show: Float? = nil) {
+        guard round.narration, Game.activeLines.contains(key), !said.contains(key) else { return }
         said.insert(key)
-        narrationQueue.append(Strings.t(key))
+        narrationQueue.append((Strings.t(key), show))
     }
 
     private func advanceNarration() {
         // время показа по длине текста: ~14 знаков в секунду, не меньше 3 с; следующая реплика
         // не вытесняет текущую, пока та не дочитана
         let fade: Float = 1.0
-        let minShow = max(3.0, Float(hud.narration.count) / 14.0)
-        let maxShow = minShow + 2.5
+        var minShow = max(3.0, Float(hud.narration.count) / 14.0)
+        var maxShow = minShow + 2.5
+        if let fixed = narrationShow { minShow = fixed; maxShow = fixed }     // реплика с заданным временем показа
         let shown = introT - narrationShownAt
         let hasCurrent = narrationShownAt >= 0 && shown < maxShow
         if !narrationQueue.isEmpty && (!hasCurrent || shown >= minShow) {
-            hud.narration = narrationQueue.removeFirst()
+            let next = narrationQueue.removeFirst()
+            hud.narration = next.text
+            narrationShow = next.show
             narrationShownAt = introT
             hud.narrationOpacity = 1
             return
@@ -1408,7 +1414,12 @@ final class Game {
         advancePresses(rawElapsed)
         updateStarMirror()
         for s in 0..<probePulse.count where probePulse[s] > 0 { probePulse[s] = max(0, probePulse[s] - rawElapsed / 0.28) }
-        if shipOn >= 1 { say("flight.start") }     // задание звучит, когда корабль разгорелся: реплика про включение висит всё это время
+        // реплика про включение: появляется чуть раньше, чем корабль начинает светлеть, висит, пока он
+        // разгорается, и гаснет сразу после (последняя секунда показа — затухание)
+        if introT >= K.SHIP_ON_DELAY - K.POWER_LINE_LEAD {
+            say("flight.power", show: K.POWER_LINE_LEAD + K.SHIP_ON_TIME + K.POWER_LINE_TAIL)
+        }
+        if shipOn >= 1 { say("flight.start") }
         advanceNarration()
 
         fpsAcc += rawElapsed; fpsFrames += 1
