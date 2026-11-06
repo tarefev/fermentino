@@ -73,6 +73,13 @@ struct PrologueView: View {
                 onFinish()
             }
         }
+        .task(id: index) {
+            // девиз тапа не ждёт: повисел K.TAGLINE_HOLD секунд и сам начинает растворяться (тап ускоряет)
+            if frames[index].image != nil { return }
+            try? await Task.sleep(nanoseconds: UInt64(K.TAGLINE_HOLD * 1_000_000_000))
+            if Task.isCancelled { return }
+            onFinish()
+        }
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
     }

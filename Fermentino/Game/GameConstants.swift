@@ -77,6 +77,7 @@ enum K {
     static let COL_RIVET = COL_EMBLEM             // нашлёпки на борту — красные, как звезда
     static let SHIP_ON_DELAY: Float = 1.2         // сколько секунд корабль стоит ржавым
     static let SHIP_ON_TIME: Float = 3.5          // за сколько секунд разгорается
+    static let TAGLINE_HOLD: Double = 2.0         // сколько секунд девиз висит целиком, прежде чем сам начнёт растворяться
     static let PROLOGUE_FADE: Double = 2.5        // за сколько секунд девиз растворяется, открывая игру
     static let POWER_LINE_LEAD: Float = 0.4       // реплика про включение появляется за столько секунд до начала разгорания
     static let POWER_LINE_TAIL: Float = 1.1       // и гаснет через столько секунд после того, как корабль разгорелся
