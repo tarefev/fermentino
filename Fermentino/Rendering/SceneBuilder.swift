@@ -152,13 +152,16 @@ struct SceneBuilder {
             var on: Float = 1                                // корабль: насколько он «включился» с начала тура
             if c.main { on = game.shipOn; col = game.hullColor }
             if o.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * o.cap; col.w = 1 }
+            var fade: Float = 1                              // корабль в поглотителе: под конец тает до прозрачного
+            if c.main { fade = game.shipFade; col.w = fade }
+            if fade <= 0 { return }
             let spin = game.gfxSpin * 0.8 + c.spinPhase      // 0.8 — скорость вращения электронов
             let orbitR = r * 0.7                               // 0.7 — радиус орбиты (ближе к краю)
             var n = max(0, c.valence - c.bonds.count)
             if c.main && game.probesOn { n = 0 }           // у хоста свободные щупы рисуются штырями, не электронами
             let blur: Float = c.main ? 14 : 10
             var glow = col; glow.w = 0.55
-            if c.main { glow.w = 0.12 + 0.5 * on }          // ржавый почти не светится, свечение приходит с включением
+            if c.main { glow.w = (0.12 + 0.5 * on) * fade } // ржавый почти не светится, свечение приходит с включением
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             if c.main {
                 // пока корабль не включился, он ржавый: швы, заклёпки и разводы вращаются вместе с ним;
@@ -173,7 +176,11 @@ struct SceneBuilder {
                 // по стрелке средней кнопки; поворачивается только вместе со шкалой
                 starAngle = game.arrowAngle(game.held.count / 2) + .pi / 2
             }
-            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, K.COL_EMBLEM, angle: starAngle) }   // герб: красная звезда
+            if c.main {                                                                      // герб: красная звезда
+                var emblem = K.COL_EMBLEM
+                emblem.w = fade
+                star(p.x, p.y, r * 0.4, inner: r * 0.17, emblem, angle: starAngle)
+            }
             if c.main && game.probesOn && !game.byDirection {
                 // нашлёпки на борту: по одной у основания каждого щупальца, вращаются вместе с кораблём;
                 // из своей нашлёпки выходит волна выстрела. У включённого щупальца яркая, у выключенного тусклая.
@@ -188,6 +195,7 @@ struct SceneBuilder {
                     // размеры: полуширина 2.3, наружу торчит на 1.0, вглубь на 14% радиуса (у выключенной — на 10%)
                     var inner = r * 0.86
                     if k < game.probeOff.count && game.probeOff[k] { red.w = 0.45; tip.w = 0.45; inner = r * 0.90 }
+                    red.w *= fade; tip.w *= fade
                     let a = atan2(d.y, d.x)
                     rimMark(p.x, p.y, inner: r - 0.5, outer: r + 1.0, angle: a, halfWidth: 2.3, tip)   // светлый, выглядывает наружу
                     rimMark(p.x, p.y, inner: inner, outer: r, angle: a, halfWidth: 2.3, red)            // красный, внутри борта
@@ -333,6 +341,8 @@ struct SceneBuilder {
         let host = bodies[0]
         let hp = screen(host.pos.x, host.pos.y, cam: cam)
         guard let pr = game.round.probes else { return }
+        let fade = game.shipFade
+        if fade <= 0 { return }
         for s in 0..<game.held.count {
             guard s < game.nuclei.count else { continue }
             let k = game.probeSector(s)                  // цвет, кнопка и «выключено» — по сектору, где щуп сейчас
@@ -340,6 +350,7 @@ struct SceneBuilder {
             let blend = game.probeSectorBlend(s)
             let colFrom = K.PROBE_COLORS[(blend.from + pr.colorOffset) % K.PROBE_COLORS.count]
             var col = colFrom + (K.PROBE_COLORS[(blend.to + pr.colorOffset) % K.PROBE_COLORS.count] - colFrom) * blend.t
+            col.w = fade                                   // щупальца тают вместе с кораблём
             for j in game.held[s] {
                 let ao = rot(game.dx(bodies[j].pos.x, host.pos.x) * scale, game.dy(bodies[j].pos.y, host.pos.y) * scale)
                 let ax = hp.x + ao.x, ay = hp.y + ao.y
@@ -357,7 +368,7 @@ struct SceneBuilder {
             if hold > 0 {
                 let closing = isOff ? 1 - hold : hold           // 1 — кольцо у самого ядрышка
                 var ring = col
-                ring.w = 0.35 + 0.6 * closing
+                ring.w = (0.35 + 0.6 * closing) * fade
                 let rr = nr + 1.5 + 9 * (1 - closing)
                 circle(tx, ty, rr, ring, inner: rr - 1.4)
             }
@@ -365,7 +376,7 @@ struct SceneBuilder {
             // По направлению ловят все щупы, выключается только стрельба в сторону — ядрышко видно всегда.
             if isOff && hold <= 0 && !game.byDirection {
                 var faint = col
-                faint.w = 0.25
+                faint.w = 0.25 * fade
                 circle(tx, ty, nr, faint, inner: nr - 1)
                 continue
             }

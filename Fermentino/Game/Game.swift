@@ -218,6 +218,13 @@ final class Game {
         if t >= 1 { return 1 }
         return t * t * (3 - 2 * t)
     }
+    /// Корабль тает в поглотителе: 1 — виден целиком, 0 — исчез. Пока его втягивает, он уменьшается,
+    /// а на последних 40% пути ещё и становится прозрачным.
+    var shipFade: Float {
+        let c = bodies[0].cap
+        if c <= 0.6 { return 1 }
+        return max(0, 1 - (c - 0.6) / 0.4)
+    }
     /// Цвет корпуса корабля сейчас: от ржавого к светлому по мере включения.
     var hullColor: SIMD4<Float> {
         var c = K.COL_HULL + (K.COL_HULL_ON - K.COL_HULL) * shipOn
@@ -1122,6 +1129,7 @@ final class Game {
     private var statsPhysMs: Double = 0, statsGpuMs: Double = 0
     private var statsGpuExecMs: Double = 0, statsGpuQueuedMs: Double = 0
     private let autoFire = ProcessInfo.processInfo.environment["FERM_AUTOFIRE"] == "1"   // замер: игра сама жмёт кнопки
+    private let winTest = ProcessInfo.processInfo.environment["FERM_WINTEST"] == "1"     // проверка финала: корабль сам попадает в поглотитель
     private var autoFireT: Float = 0
     private var statsIdleOff = false
 
@@ -1390,6 +1398,7 @@ final class Game {
     func frame(now: Double) {
         let rawElapsed = Float(now - last); last = now
         if !introHold { introT += rawElapsed }
+        if winTest && introT > 6 && !winning && !won { bodies[0].pos = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y); bodies[0].vel = .zero }
         if !won { roundT += rawElapsed }
         advanceShotWaves(rawElapsed)
         if !puffs.isEmpty {
