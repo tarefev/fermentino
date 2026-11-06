@@ -106,7 +106,7 @@ struct PrologueView: View {
         .onChange(of: index, initial: true) { _, now in
             // реплика доиграла — кадр перелистывается сам, после короткой паузы; тап по-прежнему листает сразу
             Voice.shared.play("voice_prologue\(now + 1)", delay: 0.4) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     if index == now && index + 1 < frames.count { index += 1 }
                 }
             }
