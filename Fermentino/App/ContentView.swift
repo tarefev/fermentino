@@ -371,7 +371,12 @@ private struct ProbeControls: View {
                         let col = probeColors[(s + hud.probeColorOffset) % probeColors.count]
                         // выключенную кнопку при удержании ведём к тому виду, какой она получит после включения
                         // (щуп с одним своим ядрышком), иначе в конце заливка появляется скачком
-                        let bright = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
+                        // пока щупальце восстанавливается после выстрела, кнопка плавно набирает цвет:
+                        // от почти пустой до той яркости, с какой стоит готовая с одним ядрышком
+                        let charge = s < hud.probeCharge.count ? Double(hud.probeCharge[s]) : 1
+                        let charging = !off && charge < 1
+                        let ready = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
+                        let bright = charging ? 0.06 + 0.19 * charge : ready
                         Circle()
                             .fill(col.opacity(bright * on))
                             .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))

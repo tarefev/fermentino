@@ -263,8 +263,10 @@ struct SceneBuilder {
             let host = bodies[0]
             let hp = screen(host.pos.x, host.pos.y, cam: cam)
             let dist = (pr.length - host.r) * scale                    // от борта до ядрышка
-            let reach = dist * ShotWave.overshoot
             for wv in game.shotWaves {
+                // холостая волна (щупальце восстанавливается) — слабее и до ядрышка не достаёт
+                let reach = dist * (wv.weak ? ShotWave.weakReach : ShotWave.overshoot)
+                let strength: Float = wv.weak ? 0.45 : 0.9
                 let o = rot(wv.out.x, wv.out.y)                        // направление на экране
                 let ox = hp.x + o.x * host.r * scale, oy = hp.y + o.y * host.r * scale
                 let ang = atan2(o.y, o.x)
@@ -273,7 +275,7 @@ struct SceneBuilder {
                     if age <= 0 { continue }
                     let rad = dist * age / ShotWave.delay
                     if rad >= reach { continue }
-                    var col = rgba(207, 230, 255, 0.9 * (1 - rad / reach))
+                    var col = rgba(207, 230, 255, strength * (1 - rad / reach))
                     if k > 0 { col.w *= 0.7 }
                     rimMark(ox, oy, inner: rad - 0.6, outer: rad + 0.6, angle: ang, halfWidth: rad * 0.62, col)
                 }

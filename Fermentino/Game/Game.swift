@@ -48,10 +48,15 @@ struct ShotWave {
     var out: SIMD2<Float>        // направление на щупальце (мировое); до выстрела следит за щупальцем
     var t: Float                 // секунд с нажатия
     var fired = false
+    var weak = false             // холостая: щупальце ещё восстанавливается — волна показывает намерение, но не достаёт
     static let delay: Float = 0.13      // за сколько передняя дуга доходит до ядрышка
     static let lag: Float = 0.045       // на сколько отстают вторая и третья дуги
     static let overshoot: Float = 1.8   // докуда дуги идут дальше ядрышка (в расстояниях борт — ядрышко)
-    static let life: Float = delay * overshoot + 2 * lag
+    static let spread: Float = 0.62     // полуширина волны на единицу пройденного пути (конус около ±38°)
+    static let fullUntil: Float = 1.15  // до этого расстояния (в расстояниях борт — ядрышко) волна толкает в полную силу
+    static let weakReach: Float = 0.5   // докуда доходит холостая волна (в расстояниях борт — ядрышко)
+    static let weakPower: Float = 0.1   // во сколько раз холостая волна толкает слабее настоящей
+    var life: Float { (weak ? ShotWave.delay * ShotWave.weakReach : ShotWave.delay * ShotWave.overshoot) + 2 * ShotWave.lag }
 }
 
 struct Star {
@@ -853,16 +858,57 @@ final class Game {
         let len = simd_length(off)
         if len < 0.001 { return }
         // нажатие пускает волну из борта; комок срывается, когда она до него дойдёт (см. advanceShotWaves)
-        if probeReload[s] > 0 || shotWaves.contains(where: { $0.slot == s && !$0.fired }) { return }
-        shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0))
+        if shotWaves.contains(where: { $0.slot == s && !$0.fired }) { return }
+        // щупальце ещё восстанавливается: волна холостая — слабая, до него не достаёт и ничего не толкает
+        shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0, weak: probeReload[s] > 0))
     }
 
     /// Раз в кадр: волны идут к своим щупальцам; дошла передняя дуга — щупальце стреляет вдоль себя.
     private func advanceShotWaves(_ dt: Float) {
         guard let pr = round.probes, !shotWaves.isEmpty else { return }
+        let host = bodies[0]
+        let dist = pr.length - host.r                    // от борта до ядрышка
+        let reach = dist * ShotWave.overshoot
         for i in 0..<shotWaves.count {
+            // холостая волна (щупальце восстанавливается) короче и толкает во много раз слабее
+            let weak = shotWaves[i].weak
+            let waveReach = weak ? dist * ShotWave.weakReach : reach
+            let power: Float = weak ? ShotWave.weakPower : 1
+            let frontBefore = dist * shotWaves[i].t / ShotWave.delay
             shotWaves[i].t += dt
+            let front = dist * shotWaves[i].t / ShotWave.delay
+            // Волна толкает всё свободное, через что проходит её передняя дуга: каждое тело получает ту же
+            // скорость вдоль волны, что и комок со щупальца (дальше ядрышка — слабее, к краю волны до нуля).
+            // Корабль получает отдачу от всего, что толкнул.
+            let out = shotWaves[i].out
+            let origin = host.pos + out * host.r
+            var pushed: Float = 0
+            for o in cores.count..<count {
+                let type = bodies[o].type
+                if type != BodyType.dust && type != BodyType.atom { continue }
+                if bodies[o].flags & (BodyFlag.group | BodyFlag.captured) != 0 || bodies[o].heat > 0.5 { continue }
+                let rel = SIMD2<Float>(dx(bodies[o].pos.x, origin.x), dy(bodies[o].pos.y, origin.y))
+                let d = simd_length(rel)
+                if d <= frontBefore || d > front || d > waveReach { continue }
+                let along = simd_dot(rel, out)
+                if along <= 0 || abs(rel.x * out.y - rel.y * out.x) > d * ShotWave.spread { continue }
+                var k: Float = 1
+                let full = weak ? 0 : dist * ShotWave.fullUntil
+                if d > full { k = max(0, 1 - (d - full) / (waveReach - full)) }
+                let dv = pr.throwSpeed * shotWaves[i].strength * k * power
+                bodies[o].vel += out * dv
+                bodies[o].heat = 1
+                pushed += bodies[o].m * dv
+            }
+            if pushed > 0 { bodies[0].vel -= out * (pushed / bodies[0].m) }
             if shotWaves[i].fired { continue }
+            if weak {
+                // холостая волна щупальце не разряжает, только следит за ним
+                let wOff = probeTip(shotWaves[i].slot, length: pr.length) - bodies[0].pos
+                let wLen = simd_length(wOff)
+                if wLen > 0.001 { shotWaves[i].out = wOff / wLen }
+                continue
+            }
             let s = shotWaves[i].slot
             let off = probeTip(s, length: pr.length) - bodies[0].pos
             let len = simd_length(off)
@@ -871,7 +917,7 @@ final class Game {
             shotWaves[i].fired = true
             if !probeOff[probeSector(s)] && !winning { throwClump(s, dir: shotWaves[i].out, strength: shotWaves[i].strength) }
         }
-        shotWaves.removeAll { $0.t >= ShotWave.life }
+        shotWaves.removeAll { $0.t >= $0.life }
     }
 
     /// Вариант Б: свайп — стреляет щуп, лучше всего лежащий по направлению свайпа, в сторону свайпа.
@@ -1396,6 +1442,12 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
+        // восстановление после выстрела: 0 сразу после, 1 — щупальце снова готово (кнопка набирает цвет)
+        set(&h.probeCharge, (0..<held.count).map { s -> Float in
+            let p = sectorProbe(s)
+            guard let pr = round.probes, pr.reload > 0 else { return 1 }
+            return 1 - min(1, max(0, probeReload[p] / pr.reload))
+        })
         // стрелка кнопки показывает середину её сектора. Углы отдаём «развёрнутыми» — каждый раз идём к новому
         // значению кратчайшей дугой, — чтобы при зеркальном перевороте ряда стрелка плавно доворачивалась, а не
         // крутилась через полный круг
