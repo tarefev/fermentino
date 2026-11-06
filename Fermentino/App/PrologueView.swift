@@ -19,7 +19,7 @@ struct PrologueView: View {
     private let frames: [(image: String?, key: String, anchor: Alignment, shift: CGFloat)] = [
         ("prologue1", "prologue.1", .leading, -18),   // слева остаются профессор и его рука целиком
         ("prologue2", "prologue.2", .center, 0),      // по центру: справа виден ассистент у чертежа
-        ("prologue3", "prologue.3", .leading, -18),
+        ("prologue3", "prologue.3", .leading, -30),   // капсула слева почти целиком, справа виден огонёк поглотителя
         (nil, "prologue.tagline", .center, 0),
     ]
 
