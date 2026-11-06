@@ -824,6 +824,20 @@ final class Game {
             bodies[j].heat = 1
         }
         bodies[0].vel -= dir * (mass * es / bodies[0].m)
+        // «пук» из борта: из точки корпуса, которая смотрит на щупальце, вылетает облачко в его сторону —
+        // это та сила, что срывает комок с орбиты. Скорости облачка — в мировых единицах за реальную секунду.
+        let host = bodies[0]
+        let toTip = probeTip(s, length: pr.length) - host.pos
+        let tipLen = simd_length(toTip)
+        if tipLen > 0.001 {
+            let out = toTip / tipLen
+            for _ in 0..<7 {
+                let a = Float.random(in: -0.4...0.4)
+                let d = SIMD2<Float>(out.x * cos(a) - out.y * sin(a), out.x * sin(a) + out.y * cos(a))
+                let v = host.vel * K.TIME_SCALE + d * Float.random(in: 45...95)
+                puffs.append(Puff(x: host.pos.x + out.x * host.r, y: host.pos.y + out.y * host.r, vx: v.x, vy: v.y, life: 1))
+            }
+        }
         say("flight.moving")
     }
 
