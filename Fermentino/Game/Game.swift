@@ -91,34 +91,41 @@ final class Game {
     }
     var probesOn: Bool { round.probes != nil }
 
-    // ---- ПРОБА: цвет и кнопка по направлению. Щупы стоят через равный угол и вращаются вместе с кораблём,
-    // поэтому «сектор» щупа — его номер, сдвинутый на число пройденных шагов. В этом режиме probeOff и
-    // нажатия кнопок считаются по секторам (направлениям), а ловят всегда все щупы.
+    // ---- ПРОБА: цвет и кнопка по направлению. У каждой кнопки своя стрелка — направление на экране;
+    // стрелки стоят через равный угол (как лучи пятиугольника). «Сектор» щупа — кнопка, чья стрелка сейчас
+    // ближе всего к нему. В этом режиме probeOff и нажатия кнопок считаются по секторам, а ловят все щупы.
     var byDirection: Bool { round.probes?.colorByDirection ?? false }
-    private var sectorShift: Int {
-        let n = cores[0].slots.count
-        if !byDirection || n == 0 { return 0 }
-        return Int((bodies[0].ang / (2 * .pi / Float(n))).rounded()) + (round.probes?.sectorOffset ?? 0)
+    /// Угол стрелки кнопки k на экране (рад; 0 — вправо, +π/2 — вниз).
+    func arrowAngle(_ k: Int) -> Float {
+        guard let pr = round.probes else { return 0 }
+        return pr.arrowBase + pr.arrowStep * Float(k)
+    }
+    /// Положение щупа s вдоль ряда кнопок: целое — ровно на стрелке кнопки, дробное — между соседними.
+    private func sectorPos(_ s: Int) -> Float {
+        guard let pr = round.probes, pr.arrowStep != 0 else { return Float(s) }
+        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase) / pr.arrowStep
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {
         let n = cores[0].slots.count
-        return n == 0 ? s : ((s + sectorShift) % n + n) % n
+        if !byDirection || n == 0 { return s }
+        return ((Int(sectorPos(s).rounded()) % n) + n) % n
     }
-    /// Положение щупа s между секторами: целая часть — сектор, из которого он выходит, дробная — насколько
-    /// он уже перешёл в следующий. По нему цвет щупа плавно перетекает из одного оттенка в другой.
+    /// Между какими двумя секторами щуп s и насколько он уже перешёл во второй: по этому его цвет
+    /// плавно перетекает из одного оттенка в другой.
     func probeSectorBlend(_ s: Int) -> (from: Int, to: Int, t: Float) {
         let n = cores[0].slots.count
         if !byDirection || n == 0 { return (s, s, 0) }
-        let pos = Float(s + (round.probes?.sectorOffset ?? 0)) + bodies[0].ang / (2 * .pi / Float(n))
-        let base = pos.rounded(.down)
+        let pos = sectorPos(s), base = pos.rounded(.down)
         let a = ((Int(base) % n) + n) % n
         return (a, (a + 1) % n, pos - base)
     }
     /// Щуп, который сейчас в секторе k.
     func sectorProbe(_ k: Int) -> Int {
         let n = cores[0].slots.count
-        return n == 0 ? k : ((k - sectorShift) % n + n) % n
+        if !byDirection { return k }
+        for s in 0..<n where probeSector(s) == k { return s }
+        return k
     }
     /// Щуп s ничего не ловит (в режиме «по направлению» ловят все).
     private func physOff(_ s: Int) -> Bool { byDirection ? false : probeOff[s] }
@@ -795,14 +802,9 @@ final class Game {
     func throwProbe(_ s: Int, strength: Float = 1) {
         guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
         if probeOff[s] { return }                          // выключенный щуп (или направление) не реагирует
-        if byDirection {
-            // кнопка стреляет ровно по своей стрелке: углы пятиугольника известны точно, а щуп в секторе
-            // может стоять до 36° в сторону от его середины — по щупу бросок гулял бы вместе с вращением
-            let slots = cores[0].slots, n = slots.count, off = pr.sectorOffset
-            let a = slots[((s - off) % n + n) % n]
-            throwClump(sectorProbe(s), dir: SIMD2<Float>(cos(a), sin(a)), strength: strength)
-            return
-        }
+        // по направлению: кнопка стреляет щупом, который сейчас в её секторе, вдоль него самого —
+        // стрелка на кнопке в этот момент показывает ровно туда же
+        let s = sectorProbe(s)
         let off = probeTip(s, length: pr.length) - bodies[0].pos
         let len = simd_length(off)
         if len < 0.001 { return }
@@ -1300,9 +1302,9 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
-        // стрелка кнопки k — угол щупа, который при нулевом повороте корабля стоит в её секторе
-        let slots = cores[0].slots, off = round.probes?.sectorOffset ?? 0
-        set(&h.probeArrows, byDirection ? (0..<slots.count).map { slots[(($0 - off) % slots.count + slots.count) % slots.count] } : [])
+        // стрелка кнопки — настоящее направление щупа, который сейчас в её секторе: плавно едет вместе
+        // с вращением, а когда в сектор заходит следующий щуп, отскакивает назад на шаг
+        set(&h.probeArrows, byDirection ? (0..<cores[0].slots.count).map { bodies[0].ang + cores[0].slots[sectorProbe($0)] } : [])
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
