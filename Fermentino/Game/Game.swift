@@ -1302,9 +1302,9 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
-        // стрелка кнопки — настоящее направление щупа, который сейчас в её секторе: плавно едет вместе
-        // с вращением, а когда в сектор заходит следующий щуп, отскакивает назад на шаг
-        set(&h.probeArrows, byDirection ? (0..<cores[0].slots.count).map { bodies[0].ang + cores[0].slots[sectorProbe($0)] } : [])
+        // стрелка кнопки стоит на месте и показывает середину её сектора; сам бросок идёт по лучу щупа,
+        // который сейчас в секторе, то есть может отличаться от стрелки до половины шага
+        set(&h.probeArrows, byDirection ? (0..<cores[0].slots.count).map { arrowAngle($0) } : [])
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
