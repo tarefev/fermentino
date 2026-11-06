@@ -73,6 +73,11 @@ struct PrologueView: View {
                 onFinish()
             }
         }
+        // озвучка кадра: файл voice_prologueN.m4a, если он записан; смена кадра обрывает реплику
+        .onChange(of: index, initial: true) { _, now in
+            Voice.shared.play("voice_prologue\(now + 1)", delay: 0.4)
+        }
+        .onDisappear { Voice.shared.stop() }
         .task(id: index) {
             // девиз тапа не ждёт: повисел K.TAGLINE_HOLD секунд и сам начинает растворяться (тап ускоряет)
             if frames[index].image != nil { return }
