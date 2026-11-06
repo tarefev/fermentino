@@ -14,7 +14,7 @@ enum Strings {
     private static let ru: [String: String] = [
         "zone.label": "ПОГЛОТИТЕЛЬ",
         "prologue.1": "Смотри, Юрик. Смотри! Он ест грязь, он пьёт тьму, и он строит молекулы. Зачем? Наука, Юрик. Наука не спрашивает. Полезай.",
-        "prologue.2": "Пошло! Громче! Да! Запишите, все: это была случайность.",
+        "prologue.2": "Доделана? Нет. Важно? Нет. Проблемы решаются в порядке поступления, Юрик. Опускайте!",
         "prologue.3": "Юрик? Юрик, ты меня слышишь? Хорошо. Ты жив, ты внутри, ты мой. Ничего не трогай.",
         "prologue.tagline": "Наука требует жертв.\nЮрик вызвался.",
         "win.title": "ИНЦИДЕНТ ИСЧЕРПАН",
@@ -34,7 +34,7 @@ enum Strings {
     private static let en: [String: String] = [
         "zone.label": "ABSORBER",
         "prologue.1": "Look, Yurik. Look! It eats the dirt, it drinks the dark, and it builds molecules. What for? Science, Yurik. Science never asks. Get in.",
-        "prologue.2": "There it goes! Louder! Yes! Write it down, all of you: it was an accident.",
+        "prologue.2": "Finished? No. Does it matter? No. Problems are solved in order of arrival, Yurik. Lower him!",
         "prologue.3": "Yurik? Yurik, can you hear me? Good. You're alive, you're inside, you're mine. Don't touch anything.",
         "prologue.tagline": "Science demands sacrifice.\nYurik volunteered.",
         "win.title": "INCIDENT CLOSED",
