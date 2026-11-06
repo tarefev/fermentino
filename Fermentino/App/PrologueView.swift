@@ -33,6 +33,8 @@ struct PrologueView: View {
             }
             VStack {
                 if frame.image != nil {
+                    // реплика внизу кадра: наверху она закрывала лицо профессора
+                    Spacer()
                     Text(Strings.t(frame.key))
                         .font(.system(size: 16, weight: .semibold, design: .monospaced))
                         .foregroundStyle(prologueText)
@@ -42,8 +44,7 @@ struct PrologueView: View {
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity)
                         .background(Color.black.opacity(0.45))
-                        .padding(.top, 8)
-                    Spacer()
+                        .padding(.bottom, 8)
                 } else {
                     Spacer()
                     Text(Strings.t(frame.key))
