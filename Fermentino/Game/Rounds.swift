@@ -130,6 +130,7 @@ struct ProbeDef {
     var applePull: Float = 900      // с какой силой (как масса) пустая ладонь тянет яблоки; слабее, чем камни, — яблоко подходит не спеша
     var startApple: [Int] = []      // какие щупальца на старте стоят в режиме яблок
     var appleMode = false           // долгое нажатие листает три режима: камни → выключено → яблоки (иначе два: камни ↔ выключено)
+    var fixedModes = false          // режимы щупалец в туре заданы и не переключаются: долгое нажатие ничего не делает
     var damp: Float = 45            // демпфер щупа, около критического для его жёсткостей: без дёрганья
 }
 
@@ -224,8 +225,8 @@ enum Rounds {
             id: "apples", win: .reachZone,
             spawn: [],
             elements: [
-                // пять щупалец по лучам звезды: пять одинаковых ядрышек уравновешивают друг друга, корабль не болтает
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
+                // три руки через равные углы, по 120°
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, 30, 150], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -254,9 +255,9 @@ enum Rounds {
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
             // «заряд»: пойманный камень отталкивает свободные в полную силу (heldGravity 1), а конец щупальца
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
-            // три руки: средняя летает на камнях, две соседние стоят в режиме яблок. Долгое нажатие листает
-            // режимы по кругу: камни → выключено → яблоки
-            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [1, 3], appleMode: true),
+            // три руки и три кнопки: средняя кнопка летает на камнях (тот же коралловый цвет, что в первом туре),
+            // две крайние стоят в режиме яблок. Режимы в этом туре — данность: игрок их не переключает и не выключает
+            probes: ProbeDef(tipMass: 900, colorOffset: 1, startOn: [1], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [0, 2], appleMode: true, fixedModes: true),
             substeps: 3,
             // пять яблок вокруг старта; поглотитель принимает корабль, только когда два из них в руках
             apples: AppleDef(n: 5, need: 2, r: 5, mass: 600, minDist: 450, maxDist: 1000)

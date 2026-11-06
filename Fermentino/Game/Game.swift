@@ -134,7 +134,7 @@ final class Game {
     private var probePress: [Float] = []       // с, сколько держат кнопку щупа; -1 = не нажата; .infinity = уже сработало
     /// 0…1: насколько дожато долгое нажатие на кнопку щупа s (для анимации на кнопке и на щупе).
     func probeHoldProgress(_ s: Int) -> Float {
-        guard let pr = round.probes, s < probePress.count else { return 0 }
+        guard let pr = round.probes, s < probePress.count, !pr.fixedModes else { return 0 }
         let t = probePress[s]
         if t < pr.holdDelay || t == .infinity { return 0 }
         return min(1, (t - pr.holdDelay) / max(0.01, pr.holdTime - pr.holdDelay))
@@ -938,7 +938,7 @@ final class Game {
 
     /// Раз в кадр: дожатое до конца нажатие переключает щуп.
     private func advancePresses(_ dt: Float) {
-        guard let pr = round.probes else { return }
+        guard let pr = round.probes, !pr.fixedModes else { return }     // режимы заданы туром: удержание ничего не переключает
         for s in 0..<probePress.count where probePress[s] >= 0 && probePress[s] != .infinity {
             probePress[s] += dt
             if probePress[s] >= pr.holdTime {
