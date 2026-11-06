@@ -469,7 +469,7 @@ final class Game {
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
         narrationQueue = []; narrationShownAt = -1; narrationShow = nil; narrationSticky = false; firstThrowAt = -1; said = []
-        chalkT = -1; chalkDone = false; shipDoneT = 0; appleTestDone = false; appleThrowTested = false
+        chalkT = -1; chalkDone = false; shipDoneT = 0; appleTestDone = false; appleThrowTested = false; growing = [:]
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -856,6 +856,14 @@ final class Game {
             for s in 0..<probeReload.count where s < probeOff.count && !probeOff[s] { probeReload[s] = pr.reload }
         }
         for s in 0..<probeReload.count where probeReload[s] > 0 && !controlsLocked { probeReload[s] = max(0, probeReload[s] - K.DT) }
+        if !growing.isEmpty, pr.reload > 0 {
+            for (o, g) in growing {
+                let grown = min(1, g.grown + K.DT / pr.reload)
+                bodies[o].r = g.r * grown
+                bodies[o].m = g.m * grown * grown
+                growing[o] = grown >= 1 ? nil : (grown, g.r, g.m)
+            }
+        }
 
         // рост: зерно цепляется, только КОСНУВШИСЬ ядрышка на конце щупа или уже прицепившегося зерна
         let usedByBonds = Set(cores[0].bonds.values)
@@ -971,6 +979,7 @@ final class Game {
             idx = count
             count += 1
         }
+        growing[idx] = nil
         var b = Body()
         b.type = BodyType.dust
         b.pos = bodies[n].pos
@@ -1004,6 +1013,27 @@ final class Game {
         bodies[0].vel -= dir * (mass * es / bodies[0].m)
         say("flight.moving")
     }
+
+    /// Пук по щупальцу, на котором камень ещё не дорос: недоросший камень срывается и улетает, на его месте
+    /// сразу начинает расти новый. Улетевший дорастает до обычного размера уже в полёте (чтобы на поле не
+    /// было камней разного калибра). Отдача — по массе камня в момент срыва, а она идёт как квадрат его
+    /// размера, так что толчок совсем слабый.
+    private func throwPartial(_ s: Int, dir: SIMD2<Float>) {
+        guard let pr = round.probes, s < probeReload.count, probeReload[s] > 0, pr.reload > 0 else { return }
+        let grown = 1 - probeReload[s] / pr.reload            // 0…1: насколько камень успел вырасти
+        if grown <= 0.03 { return }                            // только что сбили — сбивать ещё нечего
+        probeReload[s] = pr.reload
+        guard let bullet = spawnBullet(from: nuclei[s]) else { return }
+        let fullR = bodies[bullet].r, fullM = bodies[bullet].m
+        bodies[bullet].r = fullR * grown
+        bodies[bullet].m = fullM * grown * grown
+        bodies[bullet].vel += dir * pr.throwSpeed
+        bodies[bullet].heat = 1
+        bodies[0].vel -= dir * (bodies[bullet].m * pr.throwSpeed / bodies[0].m)
+        growing[bullet] = (grown, fullR, fullM)
+    }
+    /// Сбитые недоросшие камни, которые дорастают в полёте: тело → (насколько выросло, полный радиус, полная масса).
+    private var growing: [Int: (grown: Float, r: Float, m: Float)] = [:]
 
     /// Вариант А: выстрел со щупа s вдоль щупа наружу. Пустой щуп стреляет одним ядрышком.
     func throwProbe(_ s: Int, strength: Float = 1) {
@@ -1093,10 +1123,15 @@ final class Game {
             if pushed > 0 { bodies[0].vel -= out * (pushed / bodies[0].m) }
             if shotWaves[i].fired { continue }
             if weak {
-                // холостая волна щупальце не разряжает, только следит за ним
-                let wOff = probeTip(shotWaves[i].slot, length: pr.length) - bodies[0].pos
+                // холостая волна следит за щупальцем; дойдя до своего предела, сбивает с него недоросший камень
+                let ws = shotWaves[i].slot
+                let wOff = probeTip(ws, length: pr.length) - bodies[0].pos
                 let wLen = simd_length(wOff)
                 if wLen > 0.001 { shotWaves[i].out = wOff / wLen }
+                if shotWaves[i].t >= ShotWave.delay * ShotWave.weakReach {
+                    shotWaves[i].fired = true
+                    if ws < probeOff.count, !probeOff[ws], !winning { throwPartial(ws, dir: shotWaves[i].out) }
+                }
                 continue
             }
             let s = shotWaves[i].slot

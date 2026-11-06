@@ -148,7 +148,10 @@ kernel void computeForces(device const Body *bodies     [[buffer(0)]],
         // и угол покоя относительно ориентации хоста (в ang) — так на одном щупе держится целый комок.
         if (p.holdOn != 0u) {
             const bool aHeld = (A.flags & FLAG_HELD) != 0u, bHeld = (B.flags & FLAG_HELD) != 0u;
-            if ((i == 0u && bHeld) || (j == 0u && aHeld)) {
+            // кончик щупальца (BODY_TIP) каждый шаг ставится точно на место самой игрой, пружина ему не нужна —
+            // и корабль она не должна дёргать: с одной рукой её тягу нечем уравновесить, корабль носило по полю
+            const bool tipPair = (i == 0u && B.type == BODY_TIP) || (j == 0u && A.type == BODY_TIP);
+            if (!tipPair && ((i == 0u && bHeld) || (j == 0u && aHeld))) {
                 const float L = (i == 0u) ? B.angVel : A.angVel;
                 const float restAng = (i == 0u) ? B.ang : A.ang;
                 const float mu = mm / (A.m + B.m);
