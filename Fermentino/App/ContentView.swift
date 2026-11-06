@@ -322,12 +322,11 @@ private struct ProbeControls: View {
 
     // пять оттенков красного от светлого к тёмному — те же, что у щупов в игре
     private let probeColors: [Color] = [
-        // те же пять оттенков, что были, сдвинуты на два влево
+        Color(red: 1, green: 0xe0 / 255, blue: 0xd6 / 255),
+        Color(red: 1, green: 0xab / 255, blue: 0x99 / 255),
         Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255),
         Color(red: 0xd4 / 255, green: 0x3b / 255, blue: 0x3b / 255),
         Color(red: 0x9c / 255, green: 0x24 / 255, blue: 0x40 / 255),
-        Color(red: 1, green: 0xe0 / 255, blue: 0xd6 / 255),
-        Color(red: 1, green: 0xab / 255, blue: 0x99 / 255),
     ]
     private let buttonSize: CGFloat = 54
     @State private var pressed: Set<Int> = []      // какие кнопки щупов сейчас под пальцем
