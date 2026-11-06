@@ -131,9 +131,12 @@ struct SceneBuilder {
                 // по направлению звезда не вращается: её лучи смотрят туда же, куда стрелки кнопок, главный луч —
                 // по стрелке средней кнопки (риска на шкале); поворачивается только вместе со шкалой
                 starAngle = game.arrowAngle(game.held.count / 2) + .pi / 2
-                starGradient = 0.85
+                starGradient = 1
             }
-            if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, rgb("#ffd60a"), angle: starAngle, gradient: starGradient) }   // герб: золотая звезда
+            // герб: золотая звезда; по направлению она — элемент навигации, поэтому крупнее
+            var starR = r * 0.4
+            if game.byDirection { starR = r * 0.66 }
+            if c.main { star(p.x, p.y, starR, inner: starR * 0.425, rgb("#ffd60a"), angle: starAngle, gradient: starGradient) }
             if n > 0 {
                 let er = max(1.2, r * 0.21)                   // 0.21 — размер электронов (меньше)
                 for k in 0..<n {

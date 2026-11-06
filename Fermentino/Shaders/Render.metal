@@ -117,7 +117,7 @@ fragment float4 shapeFragment(ShapeOut in [[stage_in]])
         // к противоположной стороне звезда уходит в тёмно-оранжевый — так видно, куда она смотрит
         if (in.halfSize.y > 0.0) {
             const float back = saturate(0.5 + 0.5 * q.y / in.radius);     // 0 у кончика главного луча, 1 сзади
-            rgb = mix(rgb, rgb * float3(0.78, 0.42, 0.25), in.halfSize.y * back);
+            rgb = mix(rgb, rgb * float3(0.60, 0.24, 0.12), in.halfSize.y * back);
         }
     } else if (in.shape == 0u) {
         const float d = length(in.local);
