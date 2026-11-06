@@ -184,7 +184,11 @@ final class Game {
     private var narrationShow: Float?            // сколько секунд висит текущая реплика; nil — по длине текста
     /// Реплики, которые сейчас звучат. Остальные сняты до обсуждения: их места в коде и строки в таблице
     /// остались, чтобы вернуть реплику, достаточно добавить её ключ сюда.
-    private static let activeLines: Set<String> = ["flight.power"]
+    private static let activeLines: Set<String> = ["flight.power", "flight.arrow"]
+    /// Обводка стрелки к поглотителю «мелом»: секунды с её начала, −1 — не идёт. Один раз за тур.
+    private(set) var chalkT: Float = -1
+    private var chalkDone = false
+    static let chalkLife: Float = 2.3
     private var narrationShownAt: Float = -1
     private var said: Set<String> = []
     private var elements: [String: ElementDef] = [:]
@@ -420,6 +424,7 @@ final class Game {
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
         narrationQueue = []; narrationShownAt = -1; narrationShow = nil; said = []
+        chalkT = -1; chalkDone = false
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -1422,6 +1427,14 @@ final class Game {
             say("flight.power", show: K.POWER_LINE_LEAD + K.SHIP_ON_TIME + K.POWER_LINE_TAIL)
         }
         if shipOn >= 1 { say("flight.start") }
+        // реплика про стрелку — после паузы за погасшей репликой про включение; чуть позже стрелку обводят
+        let arrowAt = K.SHIP_ON_DELAY + K.SHIP_ON_TIME + K.POWER_LINE_TAIL + K.ARROW_LINE_PAUSE
+        if introT >= arrowAt { say("flight.arrow") }
+        if round.narration && !chalkDone && introT >= arrowAt + K.CHALK_DELAY { chalkDone = true; chalkT = 0 }
+        if chalkT >= 0 {
+            chalkT += rawElapsed
+            if chalkT > Game.chalkLife { chalkT = -1 }
+        }
         advanceNarration()
 
         fpsAcc += rawElapsed; fpsFrames += 1

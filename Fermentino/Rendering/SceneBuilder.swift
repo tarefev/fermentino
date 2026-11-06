@@ -401,6 +401,49 @@ struct SceneBuilder {
         circle(center.x, center.y, halfW * 1.5, ship, soft: 1)             // свечение
         ship.w = 0.95 * pulse * fade
         arrow(center.x, center.y, halfWidth: halfW, height: height, angle: ang, ringR: ringR, ship)
+        if game.chalkT >= 0 { chalkOutline(center: center, dir: dir, halfW: halfW, height: height, t: game.chalkT) }
+    }
+
+    /// Стрелку обводят белым «мелом»: треугольник вокруг клина рисуется тремя штрихами (чик-чик-чик),
+    /// пропадает и рисуется второй раз, чуть по-другому, потом гаснет. Штрих — цепочка мелких точек
+    /// с неровной яркостью, концы перехлёстывают углы, как от руки. Обводка едет вместе со стрелкой.
+    private mutating func chalkOutline(center: SIMD2<Float>, dir: SIMD2<Float>, halfW: Float, height: Float, t: Float) {
+        let perp = SIMD2<Float>(-dir.y, dir.x)
+        // вершины в осях клина (x — наружу от корабля): два угла основания и острие, с запасом вокруг клина
+        let a = SIMD2<Float>(-11, -(halfW + 13)), b = SIMD2<Float>(height + 13, 0), c = SIMD2<Float>(-11, halfW + 13)
+        let sides = [(a, b), (b, c), (c, a)]
+        let stroke: Float = 0.10, gap: Float = 0.03
+        // два прохода: когда начинается, до какого момента виден целиком, за сколько гаснет
+        let passes: [(start: Float, hold: Float, fade: Float)] = [(0, 0.60, 0.15), (0.80, 1.90, 0.40)]
+        for (pi, pass) in passes.enumerated() {
+            let lt = t - pass.start
+            if lt < 0 { continue }
+            var alpha: Float = 1
+            if t > pass.hold { alpha = 1 - (t - pass.hold) / pass.fade }
+            if alpha <= 0 { continue }
+            for (si, side) in sides.enumerated() {
+                let progress = min(1, (lt - Float(si) * (stroke + gap)) / stroke)
+                if progress <= 0 { continue }
+                // рука неточна: концы штриха сдвинуты, у каждого прохода по-своему
+                let seed = Float(pi * 3 + si)
+                let j0 = SIMD2<Float>(sin(seed * 12.9) * 2.2, cos(seed * 7.3) * 2.2)
+                let j1 = SIMD2<Float>(cos(seed * 5.1) * 2.2, sin(seed * 9.7) * 2.2)
+                let from = side.0 + j0, to = side.1 + j1
+                let d = to - from
+                let len = simd_length(d)
+                let u = d / len
+                let over: Float = 3.5                              // перехлёст за углы
+                let total = len + over * 2
+                let n = Int(total * progress / 1.1)
+                for k in 0...max(0, n) {
+                    let along = -over + Float(k) * 1.1
+                    let noise = sin(Float(k) * 3.7 + seed * 5) * 0.5 + sin(Float(k) * 1.3 + seed) * 0.5   // −1…1, не меняется от кадра к кадру
+                    let lp = from + u * along + SIMD2<Float>(-u.y, u.x) * (noise * 0.45)
+                    let sp = center + dir * lp.x + perp * lp.y
+                    circle(sp.x, sp.y, 0.95 + 0.25 * noise, SIMD4<Float>(1, 1, 1, (0.72 + 0.25 * noise) * alpha))
+                }
+            }
+        }
     }
 
     /// Где стоит миникарта. Широкий экран — вверху справа, как в прототипе. Телефон: с HUD — внизу
