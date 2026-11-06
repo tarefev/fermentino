@@ -795,7 +795,14 @@ final class Game {
     func throwProbe(_ s: Int, strength: Float = 1) {
         guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
         if probeOff[s] { return }                          // выключенный щуп (или направление) не реагирует
-        let s = sectorProbe(s)                             // кнопка → щуп, который сейчас в её секторе
+        if byDirection {
+            // кнопка стреляет ровно по своей стрелке: углы пятиугольника известны точно, а щуп в секторе
+            // может стоять до 36° в сторону от его середины — по щупу бросок гулял бы вместе с вращением
+            let slots = cores[0].slots, n = slots.count, off = pr.sectorOffset
+            let a = slots[((s - off) % n + n) % n]
+            throwClump(sectorProbe(s), dir: SIMD2<Float>(cos(a), sin(a)), strength: strength)
+            return
+        }
         let off = probeTip(s, length: pr.length) - bodies[0].pos
         let len = simd_length(off)
         if len < 0.001 { return }
