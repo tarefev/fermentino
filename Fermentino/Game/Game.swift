@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 import QuartzCore
 import simd
 
@@ -1011,9 +1012,18 @@ final class Game {
     private var statsBursts: [UInt32: Int] = [:]
     private var statsFrames = 0, statsSteps = 0
     private var statsPhysMs: Double = 0, statsGpuMs: Double = 0
+    private var statsGpuExecMs: Double = 0, statsGpuQueuedMs: Double = 0
+    private let autoFire = ProcessInfo.processInfo.environment["FERM_AUTOFIRE"] == "1"   // замер: игра сама жмёт кнопки
+    private var autoFireT: Float = 0
+    private var statsIdleOff = false
 
     private func printStats(_ dt: Float) {
         guard statsOn else { return }
+        if !statsIdleOff { statsIdleOff = true; UIApplication.shared.isIdleTimerDisabled = true }   // замер: экран не гаснет
+        if autoFire && probesOn {
+            autoFireT += dt
+            if autoFireT >= 0.45 { autoFireT = 0; throwProbe(Int.random(in: 0..<held.count)) }
+        }
         statsT += dt
         if statsT < 1 { return }
         statsT = 0
@@ -1034,6 +1044,24 @@ final class Game {
         dust.sort(); atoms.sort()
         func q(_ a: [Float], _ f: Float) -> Int { a.isEmpty ? 0 : Int(a[min(a.count - 1, Int(Float(a.count) * f))]) }
         print("STATS t=\(Int(roundT)) dust n=\(dust.count) v50=\(q(dust, 0.5)) v90=\(q(dust, 0.9)) v99=\(q(dust, 0.99)) max=\(q(dust, 1)) fast>300=\(dust.filter { $0 > 300 }.count) eligible=\(dustEligible) nearHost=\(dustNearHost) bursts=\(statsBursts[BodyType.dust] ?? 0) | atoms n=\(atoms.count) v90=\(q(atoms, 0.9)) max=\(q(atoms, 1)) nearHost=\(atomsNearHost) bursts=\(statsBursts[BodyType.atom] ?? 0) | hostV=\(Int(simd_length(host.vel))) held=\(held.map { $0.count }) splits=\(statsSplits) maxClump=\(statsMaxClump) | PERF frames=\(statsFrames) steps=\(statsSteps) physMs/step=\(String(format: "%.1f", statsPhysMs / Double(max(1, statsSteps)))) gpuMs/step=\(String(format: "%.1f", statsGpuMs / Double(max(1, statsSteps)))) bodies=\(count)")
+        // разбивка для замера: сколько пар тел в радиусе взаимодействия, сколько рядом и сколько в контакте
+        var inCut = 0, near = 0, touching = 0
+        let cut2 = K.CUT_END * K.CUT_END
+        for a in 0..<count {
+            for b in (a + 1)..<max(a + 1, count) {
+                let ddx = dx(bodies[a].pos.x, bodies[b].pos.x), ddy = dy(bodies[a].pos.y, bodies[b].pos.y)
+                let r2 = ddx * ddx + ddy * ddy
+                if r2 > cut2 { continue }
+                inCut += 1
+                if r2 < 200 * 200 { near += 1 }
+                let c = bodies[a].r + bodies[b].r
+                if r2 < c * c { touching += 1 }
+            }
+        }
+        let pairs = max(1, count * (count - 1) / 2)
+        let st = Double(max(1, statsSteps))
+        print("PROF t=\(Int(roundT)) bodies=\(count) frames=\(statsFrames) gpuWall=\(String(format: "%.1f", statsGpuMs / st)) gpuExec=\(String(format: "%.1f", statsGpuExecMs / st)) gpuQueued=\(String(format: "%.1f", statsGpuQueuedMs / st)) inCut=\(inCut * 100 / pairs)% near200=\(near) touching=\(touching) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)")
+        statsGpuExecMs = 0; statsGpuQueuedMs = 0
         statsBursts = [:]
         statsFrames = 0; statsSteps = 0; statsPhysMs = 0; statsGpuMs = 0; statsSplits = 0; statsMaxClump = 0
     }
@@ -1108,6 +1136,8 @@ final class Game {
         let gpuT0 = CACurrentMediaTime()
         sim.run(params: makeParams(hSub: h), substeps: substeps)
         statsGpuMs += (CACurrentMediaTime() - gpuT0) * 1000
+        statsGpuExecMs += sim.lastGpuExec * 1000
+        statsGpuQueuedMs += sim.lastGpuQueued * 1000
 
         // ядрышко на конце щупа стоит намертво, пока его не выстрелили: после каждого шага возвращаем его
         // точно на место (длина и угол покоя лежат в самом теле) со скоростью конца щупа — удары его не сбивают

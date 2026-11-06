@@ -9,6 +9,7 @@
 
 import Foundation
 import Metal
+import QuartzCore
 
 final class GPUSimulation {
     let device: MTLDevice
@@ -108,9 +109,15 @@ final class GPUSimulation {
             encoder.dispatchThreadgroups(groups, threadsPerThreadgroup: perGroup)
         }
         encoder.endEncoding()
+        let commitTime = CACurrentMediaTime()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+        // для замеров: сколько видеокарта реально считала и сколько буфер ждал в очереди до начала
+        lastGpuExec = commandBuffer.gpuEndTime - commandBuffer.gpuStartTime
+        lastGpuQueued = commandBuffer.gpuStartTime - commitTime
     }
+    private(set) var lastGpuExec: Double = 0
+    private(set) var lastGpuQueued: Double = 0
 }
 
 enum SimulationError: Error {
