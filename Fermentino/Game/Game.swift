@@ -90,6 +90,28 @@ final class Game {
         return min(1, (t - pr.holdDelay) / max(0.01, pr.holdTime - pr.holdDelay))
     }
     var probesOn: Bool { round.probes != nil }
+
+    // ---- ПРОБА: цвет и кнопка по направлению. Щупы стоят через равный угол и вращаются вместе с кораблём,
+    // поэтому «сектор» щупа — его номер, сдвинутый на число пройденных шагов. В этом режиме probeOff и
+    // нажатия кнопок считаются по секторам (направлениям), а ловят всегда все щупы.
+    private var byDirection: Bool { round.probes?.colorByDirection ?? false }
+    private var sectorShift: Int {
+        let n = cores[0].slots.count
+        if !byDirection || n == 0 { return 0 }
+        return Int((bodies[0].ang / (2 * .pi / Float(n))).rounded())
+    }
+    /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
+    func probeSector(_ s: Int) -> Int {
+        let n = cores[0].slots.count
+        return n == 0 ? s : ((s + sectorShift) % n + n) % n
+    }
+    /// Щуп, который сейчас в секторе k.
+    func sectorProbe(_ k: Int) -> Int {
+        let n = cores[0].slots.count
+        return n == 0 ? k : ((k - sectorShift) % n + n) % n
+    }
+    /// Щуп s ничего не ловит (в режиме «по направлению» ловят все).
+    private func physOff(_ s: Int) -> Bool { byDirection ? false : probeOff[s] }
     var controlMode: ControlMode = .buttons
 
     // ---- реплики диспетчерской (обучение)
@@ -240,7 +262,7 @@ final class Game {
         // притяжение концов щупов: тянет только свободный и включённый щуп
         for s in 0..<ms {
             var pm: Float = 0
-            if let pr = round.probes, s < held.count, !probeOff[s] {
+            if let pr = round.probes, s < held.count, !physOff(s) {
                 if held[s].isEmpty { pm = pr.probeMass }
                 else if held[s].count < pr.maxClump { pm = pr.probeMass * pr.fillingGravity }
             }
@@ -653,7 +675,7 @@ final class Game {
         // рост: зерно цепляется, только КОСНУВШИСЬ ядрышка на конце щупа или уже прицепившегося зерна
         let usedByBonds = Set(cores[0].bonds.values)
         var taken = heldSet
-        for s in 0..<held.count where !probeOff[s] && !usedByBonds.contains(s) && probeReload[s] <= 0 {
+        for s in 0..<held.count where !physOff(s) && !usedByBonds.contains(s) && probeReload[s] <= 0 {
             if held[s].count >= pr.maxClump { continue }
             let n = nuclei[s]
             for o in cores.count..<count where bodies[o].type == BodyType.dust {
@@ -710,7 +732,7 @@ final class Game {
     func toggleProbe(_ s: Int) {
         guard probesOn, s >= 0, s < probeOff.count, !winning else { return }
         probeOff[s].toggle()
-        if probeOff[s] && !held[s].isEmpty { releaseProbe(s) }
+        if !byDirection && probeOff[s] && !held[s].isEmpty { releaseProbe(s) }
     }
 
     /// Выстреленная копия ядрышка: обычное зерно пыли в точке конца щупа. Не больше 120 штук в мире —
@@ -762,7 +784,8 @@ final class Game {
     /// Вариант А: выстрел со щупа s вдоль щупа наружу. Пустой щуп стреляет одним ядрышком.
     func throwProbe(_ s: Int, strength: Float = 1) {
         guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
-        if probeOff[s] { return }                          // выключенный щуп не реагирует
+        if probeOff[s] { return }                          // выключенный щуп (или направление) не реагирует
+        let s = sectorProbe(s)                             // кнопка → щуп, который сейчас в её секторе
         let off = probeTip(s, length: pr.length) - bodies[0].pos
         let len = simd_length(off)
         if len < 0.001 { return }
@@ -776,7 +799,7 @@ final class Game {
         let dir = SIMD2<Float>(dxIn / len, dyIn / len)
         var bestSlot = -1
         var bestProj = -Float.infinity
-        for s in 0..<held.count where !probeOff[s] && probeReload[s] <= 0 {
+        for s in 0..<held.count where !physOff(s) && probeReload[s] <= 0 {
             let off = probeTip(s, length: pr.length) - bodies[0].pos
             let l = simd_length(off)
             if l < 0.001 { continue }
@@ -1241,8 +1264,9 @@ final class Game {
         set(&h.probesOn, probesOn)
         set(&h.probeFill, (0..<held.count).map { s -> Float in
             // щуп может выстрелить — показываем, сколько на нём: одно своё ядрышко уже заметно, 12 зёрен — полная
-            guard let pr = round.probes, !probeOff[s], probeReload[s] <= 0 else { return 0 }
-            return 0.2 + 0.8 * min(1, Float(held[s].count) / Float(max(1, pr.maxClump)))
+            let p = sectorProbe(s)
+            guard let pr = round.probes, !probeOff[s], probeReload[p] <= 0 else { return 0 }
+            return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })

@@ -231,7 +231,8 @@ struct SceneBuilder {
         guard let pr = game.round.probes else { return }
         for s in 0..<game.held.count {
             guard s < game.nuclei.count else { continue }
-            var col = K.PROBE_COLORS[s % K.PROBE_COLORS.count]
+            let k = game.probeSector(s)                  // цвет, кнопка и «выключено» — по сектору, где щуп сейчас
+            var col = K.PROBE_COLORS[k % K.PROBE_COLORS.count]
             for j in game.held[s] {
                 let ax = hp.x + game.dx(bodies[j].pos.x, host.pos.x) * scale
                 let ay = hp.y + game.dy(bodies[j].pos.y, host.pos.y) * scale
@@ -244,8 +245,8 @@ struct SceneBuilder {
             // долгое нажатие на кнопку. Выключение: кольцо стягивается к ядрышку и ярчает; сомкнулось — щуп
             // выключен. Включение — то же самое, прокрученное задом наперёд: ядрышко сразу целое, кольцо
             // стартует вплотную к нему, расходится с той же скоростью и тускнеет до исходной яркости.
-            let hold = game.probeHoldProgress(s)
-            let isOff = s < game.probeOff.count && game.probeOff[s]
+            let hold = game.probeHoldProgress(k)
+            let isOff = k < game.probeOff.count && game.probeOff[k]
             if hold > 0 {
                 let closing = isOff ? 1 - hold : hold           // 1 — кольцо у самого ядрышка
                 var ring = col
