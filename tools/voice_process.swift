@@ -184,14 +184,6 @@ var edit: [Float] = []
 if segs.count == targetDb.count {
     let levels = segs.map { rmsDb(voiced[$0.0..<$0.1]) }
     let mean = levels.reduce(0, +) / Double(levels.count)
-    // фон для пауз: кусок записи перед первой фразой; если его нет — самый тихий участок между кусками
-    var tone: [Float] = []
-    let t0 = segs[0].0 - Int(sr * 0.3), t1 = segs[0].0 - Int(sr * 0.06)
-    if t0 >= 0 && t1 > t0 { tone = Array(voiced[t0..<t1]) }
-    if tone.count < Int(sr * 0.1) && segs.count > 1 {
-        let g0 = segs[0].1 + Int(sr * 0.06), g1 = segs[1].0 - Int(sr * 0.06)
-        if g1 > g0 { tone = Array(voiced[g0..<g1]) }
-    }
     let fade = Int(sr * 0.012), lead = ProcessInfo.processInfo.environment["SEGS"] != nil ? 0 : Int(sr * 0.06)   // ручные куски уже с полями
     for (k, s) in segs.enumerated() {
         let gainDb = targetDb[k] - (levels[k] - mean)
@@ -202,8 +194,23 @@ if segs.count == targetDb.count {
         // LAUGH=1: последний кусок — смех, ему даём эхо подвала
         if k == segs.count - 1, ProcessInfo.processInfo.environment["LAUGH"] == "1" { piece = reverb(piece, wet: 38, tail: 1.6) }
         edit += piece
+        // пауза после куска — настоящий фон из самой записи, взятый из того же промежутка: начало промежутка
+        // и его конец, сшитые посередине. Зацикливать короткий кусочек фона нельзя: повтор слышен как
+        // ровное «уиу-уиу». Фон в паузах приглушён вдвое.
         let gap = Int(pauseAfter[k] * sr)
-        for i in 0..<gap { edit.append(tone.isEmpty ? 0 : tone[i % tone.count] * 0.6) }
+        if gap > 0 && k + 1 < segs.count {
+            let g0 = min(b, voiced.count), g1 = max(g0, min(voiced.count, segs[k + 1].0 - lead))
+            let src = Array(voiced[g0..<g1])
+            var fill = [Float](repeating: 0, count: gap)
+            let head = min(gap / 2, src.count / 2), tailN = min(gap - gap / 2, src.count - src.count / 2)
+            for i in 0..<head { fill[i] = src[i] }
+            for i in 0..<tailN { fill[gap - tailN + i] = src[src.count - tailN + i] }
+            // стык (или дыра, если промежуток в записи был короче нужной паузы) — с плавными краями
+            let xf = Int(sr * 0.03)
+            for i in 0..<min(xf, head) { fill[head - 1 - i] *= Float(i) / Float(xf) }
+            for i in 0..<min(xf, tailN) { fill[gap - tailN + i] *= Float(i) / Float(xf) }
+            edit += fill.map { $0 * 0.5 }
+        }
     }
 } else {
     print("число кусков не совпало с рисунком — без перестановки")
