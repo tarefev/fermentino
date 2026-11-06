@@ -800,9 +800,18 @@ final class Game {
         }
     }
 
+    /// Кнопки щупалец недоступны, пока не прозвучала реплика про них (про Ньютона): в туре с репликами
+    /// игрок сначала слушает про включение и стрелку, и только потом получает кнопку.
+    var controlsLocked: Bool {
+        if !round.narration { return false }
+        if !Game.activeLines.contains("flight.newton") { return false }
+        if said.contains("flight.newton") { return false }
+        return true
+    }
+
     /// Кнопку щупа s нажали: начинаем отсчёт долгого нажатия.
     func pressBegan(_ s: Int) {
-        guard probesOn, s >= 0, s < probePress.count else { return }
+        guard probesOn, !controlsLocked, s >= 0, s < probePress.count else { return }
         probePress[s] = 0
     }
 
@@ -883,6 +892,7 @@ final class Game {
     /// Вариант А: выстрел со щупа s вдоль щупа наружу. Пустой щуп стреляет одним ядрышком.
     func throwProbe(_ s: Int, strength: Float = 1) {
         guard probesOn, s >= 0, s < held.count, !winning, let pr = round.probes else { return }
+        if controlsLocked { return }                       // кнопки ещё не выданы
         if probeOff[s] { return }                          // выключенный щуп (или направление) не реагирует
         // по направлению: кнопка стреляет щупом, который сейчас в её секторе, вдоль него самого —
         // стрелка на кнопке в этот момент показывает ровно туда же
@@ -957,7 +967,7 @@ final class Game {
 
     /// Вариант Б: свайп — стреляет щуп, лучше всего лежащий по направлению свайпа, в сторону свайпа.
     func throwInDirection(_ dxIn: Float, _ dyIn: Float, strength: Float) {
-        guard probesOn, !winning, let pr = round.probes else { return }
+        guard probesOn, !winning, !controlsLocked, let pr = round.probes else { return }
         let len = hypot(dxIn, dyIn); if len == 0 { return }
         let dir = SIMD2<Float>(dxIn / len, dyIn / len)
         var bestSlot = -1
@@ -1495,6 +1505,7 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
+        set(&h.probeLocked, controlsLocked)
         // восстановление после выстрела: 0 сразу после, 1 — щупальце снова готово (кнопка набирает цвет)
         set(&h.probeCharge, (0..<held.count).map { s -> Float in
             let p = sectorProbe(s)

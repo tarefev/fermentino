@@ -407,9 +407,13 @@ private struct ProbeControls: View {
                         let charging = !off && charge < 1
                         let ready = fill > 0 ? 0.15 + 0.5 * Double(fill) : (off ? 0.25 : 0.06)
                         let bright = charging ? 0.06 + 0.19 * charge : ready
+                        // пока кнопки не выданы (профессор ещё не сказал про них), ряд стоит бледными пустыми
+                        // кружками и не нажимается; на реплике про кнопку они плавно набирают обычный вид
+                        let live: Double = hud.probeLocked ? 0 : 1
                         Circle()
-                            .fill(col.opacity(bright * on))
-                            .overlay(Circle().stroke(col.opacity(0.2 + 0.35 * on), lineWidth: 2))
+                            .fill(col.opacity(bright * on * live))
+                            .overlay(Circle().stroke(col.opacity((0.2 + 0.35 * on) * (0.3 + 0.7 * live)), lineWidth: 2))
+                            .animation(.easeOut(duration: 0.6), value: hud.probeLocked)
                             // кнопка по направлению: стрелка показывает, куда она стреляет
                             .overlay {
                                 if s < hud.probeArrows.count {

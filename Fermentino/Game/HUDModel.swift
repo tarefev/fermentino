@@ -53,6 +53,7 @@ final class HUDModel {
     var probeColorOffset = 0             // сдвиг оттенков кнопок по палитре
     var probeCharge: [Float] = []        // 0…1: восстановление щупа после выстрела (1 — готов)
     var probeMirror = false              // ряд кнопок зеркально перевёрнут (средняя смотрит вверх)
+    var probeLocked = false              // кнопки щупалец ещё недоступны: профессор не дошёл до реплики про них
     var probeHold: [Float] = []          // 0…1: насколько дожато долгое нажатие на кнопку щупа
     var controlMode: ControlMode = .buttons
     var narration = ""
