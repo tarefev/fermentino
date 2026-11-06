@@ -119,7 +119,7 @@ final class Game {
     /// Раз в кадр: зеркалим ряд, когда средняя кнопка переходит через горизонталь (с запасом 3°, чтобы
     /// у самой горизонтали раскладка не дёргалась туда-сюда).
     private func updateStarMirror() {
-        guard byDirection else { return }
+        guard byDirection, round.probes?.mirrorRow == true else { starMirrored = false; return }
         let up = -sin(middleAngle)                  // > 0 — средняя кнопка смотрит в верхнюю половину
         let margin = sin(3 * Float.pi / 180)
         if !starMirrored && up > margin { starMirrored = true }
