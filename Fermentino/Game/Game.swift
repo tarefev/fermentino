@@ -220,13 +220,15 @@ final class Game {
         if t >= 1 { return 1 }
         return t * t * (3 - 2 * t)
     }
-    /// Корабль тает в поглотителе: 1 — виден целиком, 0 — исчез. Пока его втягивает, он уменьшается,
-    /// а на последних 40% пути ещё и становится прозрачным.
+    /// Корабль в поглотителе: 1 — виден целиком, 0 — исчез. Его втягивает, он уменьшается до точки и
+    /// зависает; через K.SHIP_FADE_DELAY секунд после этого плавно тает за K.SHIP_FADE_TIME.
     var shipFade: Float {
-        let c = bodies[0].cap
-        if c <= 0.6 { return 1 }
-        return max(0, 1 - (c - 0.6) / 0.4)
+        let t = (shipDoneT - K.SHIP_FADE_DELAY) / K.SHIP_FADE_TIME
+        if t <= 0 { return 1 }
+        if t >= 1 { return 0 }
+        return 1 - t * t * (3 - 2 * t)
     }
+    private var shipDoneT: Float = 0             // сколько секунд корабль уже висит в поглотителе втянутым до конца
     /// Цвет корпуса корабля сейчас: от ржавого к светлому по мере включения.
     var hullColor: SIMD4<Float> {
         var c = K.COL_HULL + (K.COL_HULL_ON - K.COL_HULL) * shipOn
@@ -433,7 +435,7 @@ final class Game {
         hud.introIcon = round.introIcon
         hud.winSub = Strings.t(round.winSub)
         narrationQueue = []; narrationShownAt = -1; narrationShow = nil; narrationSticky = false; firstThrowAt = -1; said = []
-        chalkT = -1; chalkDone = false
+        chalkT = -1; chalkDone = false; shipDoneT = 0
         hud.narration = ""; hud.narrationOpacity = 0
         hud.hasNext = Progress.hasNext
         hud.controls = round.controls
@@ -1427,6 +1429,7 @@ final class Game {
     func frame(now: Double) {
         let rawElapsed = Float(now - last); last = now
         if !introHold { introT += rawElapsed }
+        if bodies[0].cap >= 1 { shipDoneT += rawElapsed }
         if winTest && introT > 6 && !winning && !won { bodies[0].pos = SIMD2<Float>(zone.x + zone.r * 0.6, zone.y); bodies[0].vel = .zero }
         if !won { roundT += rawElapsed }
         advanceShotWaves(rawElapsed)

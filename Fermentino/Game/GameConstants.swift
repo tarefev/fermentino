@@ -83,6 +83,8 @@ enum K {
     static let NEWTON_LINE_PAUSE: Float = 0.8     // пауза после неё перед репликой про Ньютона
     static let NEWTON_LINE_TAIL: Float = 1.5      // реплика про Ньютона висит до первого броска и уходит через столько секунд после него
     static let ROCKS_LINE_AFTER: Float = 5.0      // через сколько секунд после первого броска звучит реплика про камни
+    static let SHIP_FADE_DELAY: Float = 1.0       // втянутый корабль висит в поглотителе столько секунд, прежде чем таять
+    static let SHIP_FADE_TIME: Float = 0.9        // и тает за столько секунд
     static let CHALK_DELAY: Float = 0.7           // через сколько секунд после реплики про стрелку её обводят «мелом»
     static let PROLOGUE_FADE: Double = 2.0        // за сколько секунд девиз растворяется, открывая игру
     static let POWER_LINE_LEAD: Float = 0.4       // реплика про включение появляется за столько секунд до начала разгорания
