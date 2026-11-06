@@ -266,7 +266,7 @@ struct SceneBuilder {
             for wv in game.shotWaves {
                 // холостая волна (щупальце восстанавливается) — слабее и до ядрышка не достаёт
                 let reach = dist * (wv.weak ? ShotWave.weakReach : ShotWave.overshoot)
-                let strength: Float = wv.weak ? 0.45 : 0.9
+                let strength: Float = wv.weak ? 0.8 : 0.9
                 let o = rot(wv.out.x, wv.out.y)                        // направление на экране
                 let ox = hp.x + o.x * host.r * scale, oy = hp.y + o.y * host.r * scale
                 let ang = atan2(o.y, o.x)

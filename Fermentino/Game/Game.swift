@@ -54,7 +54,7 @@ struct ShotWave {
     static let overshoot: Float = 1.8   // докуда дуги идут дальше ядрышка (в расстояниях борт — ядрышко)
     static let spread: Float = 0.62     // полуширина волны на единицу пройденного пути (конус около ±38°)
     static let fullUntil: Float = 1.15  // до этого расстояния (в расстояниях борт — ядрышко) волна толкает в полную силу
-    static let weakReach: Float = 0.5   // докуда доходит холостая волна (в расстояниях борт — ядрышко)
+    static let weakReach: Float = 0.72  // докуда доходит холостая волна (в расстояниях борт — ядрышко): заметно, но не достаёт
     static let weakPower: Float = 0.1   // во сколько раз холостая волна толкает слабее настоящей
     var life: Float { (weak ? ShotWave.delay * ShotWave.weakReach : ShotWave.delay * ShotWave.overshoot) + 2 * ShotWave.lag }
 }
