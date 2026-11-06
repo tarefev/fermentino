@@ -15,11 +15,12 @@ struct PrologueView: View {
     let onFinish: () -> Void
     @State private var index = 0
 
-    private let frames: [(image: String?, key: String)] = [
-        ("prologue1", "prologue.1"),
-        ("prologue2", "prologue.2"),
-        ("prologue3", "prologue.3"),
-        (nil, "prologue.tagline"),
+    // anchor и shift — как картинка обрезается по ширине экрана (она шире него): у каждого кадра своё
+    private let frames: [(image: String?, key: String, anchor: Alignment, shift: CGFloat)] = [
+        ("prologue1", "prologue.1", .leading, -18),   // слева остаются профессор и его рука целиком
+        ("prologue2", "prologue.2", .center, 0),      // по центру: справа виден ассистент у чертежа
+        ("prologue3", "prologue.3", .leading, -18),
+        (nil, "prologue.tagline", .center, 0),
     ]
 
     var body: some View {
@@ -29,9 +30,8 @@ struct PrologueView: View {
             if let name = frame.image, let ui = UIImage(named: name) {
                 // картинка заполняет экран как фон и обрезается по нему: сама по себе она шире экрана,
                 // и без этого растягивала всю разметку — реплика уезжала под края
-                // обрезка смещена вправо: слева остаются профессор и его рука целиком
                 Color.clear
-                    .overlay(alignment: .leading) { Image(uiImage: ui).resizable().scaledToFill().offset(x: -18) }
+                    .overlay(alignment: frame.anchor) { Image(uiImage: ui).resizable().scaledToFill().offset(x: frame.shift) }
                     .clipped()
                     .ignoresSafeArea()
             }
