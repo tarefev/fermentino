@@ -201,6 +201,19 @@ final class Game {
     private var winMol: [Int] = []
     private var winBannerT: Float = -1
     private(set) var introT: Float = 0
+    /// «Включение» корабля в начале тура: 0 — ржавый и тёмный, 1 — разгорелся.
+    var shipOn: Float {
+        let t = (introT - K.SHIP_ON_DELAY) / K.SHIP_ON_TIME
+        if t <= 0 { return 0 }
+        if t >= 1 { return 1 }
+        return t * t * (3 - 2 * t)
+    }
+    /// Цвет корпуса корабля сейчас: от ржавого к светлому по мере включения.
+    var hullColor: SIMD4<Float> {
+        var c = K.COL_HULL + (K.COL_HULL_ON - K.COL_HULL) * shipOn
+        c.w = 1
+        return c
+    }
     private(set) var assembled = false
     private(set) var roundT: Float = 0
     private(set) var puffs: [Puff] = []

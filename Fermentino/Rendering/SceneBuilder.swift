@@ -137,6 +137,8 @@ struct SceneBuilder {
         if o.type == BodyType.core {
             let c = game.cores[i]
             var col = c.col
+            var on: Float = 1                                // корабль: насколько он «включился» с начала тура
+            if c.main { on = game.shipOn; col = game.hullColor }
             if o.cap > 0 { col = col + (SIMD4<Float>(1, 1, 1, 1) - col) * o.cap; col.w = 1 }
             let spin = game.gfxSpin * 0.8 + c.spinPhase      // 0.8 — скорость вращения электронов
             let orbitR = r * 0.7                               // 0.7 — радиус орбиты (ближе к краю)
@@ -144,8 +146,19 @@ struct SceneBuilder {
             if c.main && game.probesOn { n = 0 }           // у хоста свободные щупы рисуются штырями, не электронами
             let blur: Float = c.main ? 14 : 10
             var glow = col; glow.w = 0.55
+            if c.main { glow.w = 0.12 + 0.5 * on }          // ржавый почти не светится, свечение приходит с включением
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             circle(p.x, p.y, r, col)
+            if c.main {
+                // ржавчина: тёмные и рыжие пятна на корпусе, вращаются вместе с кораблём; с включением бледнеют
+                for b in K.RUST {
+                    let a = o.ang + b.ang * .pi / 180
+                    let d = rot(cos(a) * b.dist * r, sin(a) * b.dist * r)
+                    var rc = b.col
+                    rc.w = 0.9 * (1 - 0.8 * on)
+                    circle(p.x + d.x, p.y + d.y, b.r * r, rc, soft: 1)
+                }
+            }
             var starAngle: Float = 0
             if game.probesOn { starAngle = o.ang }                                   // лучи звезды смотрят вдоль щупов
             if game.byDirection {
@@ -154,6 +167,20 @@ struct SceneBuilder {
                 starAngle = game.arrowAngle(game.held.count / 2) + .pi / 2
             }
             if c.main { star(p.x, p.y, r * 0.4, inner: r * 0.17, K.COL_EMBLEM, angle: starAngle) }   // герб: красная звезда
+            if c.main && game.probesOn && !game.byDirection {
+                // нашлёпки на борту: по одной у основания каждого щупальца, вращаются вместе с кораблём;
+                // из своей нашлёпки выходит волна выстрела. У включённого щупальца яркая, у выключенного тусклая.
+                let bodies = game.bodies
+                for s in 0..<game.held.count where s < game.nuclei.count {
+                    let n = game.nuclei[s]
+                    let d = rot(game.dx(bodies[n].pos.x, o.pos.x), game.dy(bodies[n].pos.y, o.pos.y))
+                    let k = game.probeSector(s)
+                    var gold = K.COL_RIVET
+                    var inner = r * 0.905
+                    if k < game.probeOff.count && game.probeOff[k] { gold.w = 0.45; inner = r * 0.935 }
+                    rimMark(p.x, p.y, inner: inner, outer: r + 0.5, angle: atan2(d.y, d.x), halfWidth: 1.5, gold)
+                }
+            }
             if c.main && game.byDirection {
                 // указатель: золотая метка на борту изнутри. Наружный край — дуга по радиусу корабля (торчит
                 // на волосок), внутренний — дуга чуть меньшего круга, бока прямые, без скруглений.
@@ -407,7 +434,7 @@ struct SceneBuilder {
             circle(px, py, 2.2, game.cores[c].col)
         }
         // корабль в центре: кружок цвета корпуса без обводки, внутри звёздочка герба
-        circle(mmc, mmm, 5, game.cores[0].col)
+        circle(mmc, mmm, 5, game.hullColor)
         star(mmc, mmm, 3.6, inner: 1.5, K.COL_EMBLEM)
     }
 }

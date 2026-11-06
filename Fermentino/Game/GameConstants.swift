@@ -68,10 +68,21 @@ enum K {
     static let COL_STAR_BRIGHT = rgb("#3a4d74")
     static let COL_ATOM = rgb("#8aa0bd")
     static let COL_MINE = rgb("#3a9bff")
-    // проба 06.11: корабль как капсула на кадрах пролога — ржавая сталь и красная звезда
+    // корабль: в начале тура ржавый и тёмный, потом «включается» — светлеет и начинает светиться
     // (было: красный корпус #cc1414 и золотая звезда #ffd60a — выходил флаг Вьетнама)
-    static let COL_HULL = rgb("#a9744f")
-    static let COL_EMBLEM = rgb("#d81a1a")
+    static let COL_HULL = rgb("#84472a")          // ржавчина
+    static let COL_HULL_ON = rgb("#ffe0b8")       // включён: тот же тёплый тон, только светлый
+    static let COL_EMBLEM = rgb("#d81a1a")        // звезда
+    static let COL_RIVET = rgb("#ffd60a")         // нашлёпки на борту
+    static let SHIP_ON_DELAY: Float = 1.2         // сколько секунд корабль стоит ржавым
+    static let SHIP_ON_TIME: Float = 3.5          // за сколько секунд разгорается
+    /// Пятна ржавчины на корпусе: угол (градусы, вместе с кораблём), расстояние от центра и радиус в долях
+    /// радиуса корабля, цвет. Пятно целиком внутри борта: dist + r ≤ 1.
+    static let RUST: [(ang: Float, dist: Float, r: Float, col: SIMD4<Float>)] = [
+        (20, 0.52, 0.46, rgb("#4a2414")), (140, 0.58, 0.40, rgb("#b5571f")), (255, 0.50, 0.48, rgb("#532a17")),
+        (320, 0.66, 0.32, rgb("#c2642a")), (85, 0.70, 0.28, rgb("#3f1e11")), (200, 0.72, 0.26, rgb("#a84e1c")),
+        (300, 0.28, 0.30, rgb("#b5571f")), (170, 0.22, 0.26, rgb("#45200f")),
+    ]
     static let COL_ANCHOR = rgb("#7a6a5c")
     static let COL_ANCHOR_EDGE = rgb("#b8a48f")
     static let RGB_HOT = SIMD4<Float>(235 / 255, 80 / 255, 60 / 255, 1)
