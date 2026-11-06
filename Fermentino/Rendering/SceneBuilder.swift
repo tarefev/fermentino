@@ -296,22 +296,34 @@ struct SceneBuilder {
             let pr: Float = 1.4 + (i % 3 == 0 ? 2.0 : 0.8)
             circle(zp.x + cos(ang) * rad, zp.y + sin(ang) * rad, pr * scale, rgba(225, 190, 255, (0.25 + 0.50 * tw) * lit))
         }
-        // что поглотитель принимает: в центре значки яблок. Недостающие — мигающие колечки, принесённые горят ровно.
+        // что поглотитель принимает: в центре картинка заказа. В этом туре он ждёт не яблоки сами по себе, а корабль
+        // с яблоками в руках — поэтому нарисован кораблик, и к нему на руках приделаны яблоки. Недостающие
+        // яблоки — мигающие колечки, принесённые горят ровно. (В других турах заказ может быть иным: например,
+        // груз отдельно, корабль отдельно.)
         if let a = game.round.apples, !game.winning, !game.won {
             let have = game.applesHeld
             let blink = 0.2 + 0.8 * (0.5 + 0.5 * sin(game.gfxSpin * 1.6))
-            let ir = 8 * scale, gap = ir * 2.9
+            let shipR = 9 * scale, appleR = 5.5 * scale, arm = 21 * scale
+            // руки с яблоками веером смотрят вверх
             for q in 0..<a.need {
-                let x = zp.x + (Float(q) - Float(a.need - 1) / 2) * gap
+                let spread: Float = 1.15                                   // рад между соседними руками
+                let ang = -.pi / 2 + (Float(q) - Float(a.need - 1) / 2) * spread
+                let ax = zp.x + cos(ang) * arm, ay = zp.y + sin(ang) * arm
+                line(zp.x + cos(ang) * shipR, zp.y + sin(ang) * shipR, ax - cos(ang) * appleR, ay - sin(ang) * appleR,
+                     rgba(240, 230, 214, 0.55))
                 var g = K.COL_APPLE
                 if q < have {
                     g.w = 0.95
-                    circle(x, zp.y, ir, g)
+                    circle(ax, ay, appleR, g)
                     continue
                 }
                 g.w = blink
-                circle(x, zp.y, ir, g, inner: ir - 1.8)
+                circle(ax, ay, appleR, g, inner: appleR - 1.6)
             }
+            var hullCol = K.COL_HULL_ON
+            hullCol.w = 0.9
+            circle(zp.x, zp.y, shipR, hullCol)
+            star(zp.x, zp.y, shipR * 0.5, inner: shipR * 0.21, K.COL_EMBLEM)
         }
         scene.zoneLabel = CGPoint(x: CGFloat(zp.x), y: CGFloat(zp.y - zr - 12))
 

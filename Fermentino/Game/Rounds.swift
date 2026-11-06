@@ -225,8 +225,8 @@ enum Rounds {
             id: "apples", win: .reachZone,
             spawn: [],
             elements: [
-                // три руки через равные углы, по 120°
-                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, 30, 150], kAngle: 300, control: "player", emblem: "ussr"),
+                // те же пять лучей звезды, что всегда: пять нашлёпок на борту и пять кнопок
+                "host": ElementDef(name: "Тесей", symbol: "Ts", color: K.COL_HULL, r: 8, mass: 5000, angles: [-90, -18, 54, 126, 198], kAngle: 300, control: "player", emblem: "ussr"),
                 "nitron": ElementDef(name: "nitron", symbol: "Ni", color: rgb("#8aa0bd"), valence: 0, ballast: true, density: 15,
                                      groups: [],
                                      explode: ExplodeDef(max: 32, r: 35, speed: 4000, burst: 8, rate: 2, rateRef: 16)),
@@ -255,9 +255,9 @@ enum Rounds {
             // Это настройка только первого тура — в следующих вес ядрышка задаётся заново.
             // «заряд»: пойманный камень отталкивает свободные в полную силу (heldGravity 1), а конец щупальца
             // тянет всегда (tipAlways) — когда камней на нём набралось достаточно, они сами гасят его притяжение
-            // три руки и три кнопки: средняя кнопка летает на камнях (тот же коралловый цвет, что в первом туре),
-            // две крайние стоят в режиме яблок. Режимы в этом туре — данность: игрок их не переключает и не выключает
-            probes: ProbeDef(tipMass: 900, colorOffset: 1, startOn: [1], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [0, 2], appleMode: true, fixedModes: true),
+            // работают три щупальца из пяти, через одно: среднее летает на камнях, как в первом туре, два крайних
+            // (лучи напротив него) стоят в режиме яблок, два между ними выключены. Кнопок по-прежнему пять. Режимы в этом туре — данность: игрок их не переключает и не выключает
+            probes: ProbeDef(tipMass: 900, startOn: [2], heldGravity: 1, tipAlways: true, probeMass: 3200, startApple: [0, 4], appleMode: true, fixedModes: true),
             substeps: 3,
             // пять яблок вокруг старта; поглотитель принимает корабль, только когда два из них в руках
             apples: AppleDef(n: 5, need: 2, r: 5, mass: 600, minDist: 450, maxDist: 1000)
