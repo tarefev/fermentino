@@ -418,8 +418,8 @@ struct SceneBuilder {
             if k < game.probeMode.count && game.probeMode[k] == 2 && hold <= 0 {
                 var palm = K.COL_APPLE
                 palm.w = 0.9 * fade
-                let pr2 = pr.palmR * scale                     // ладонь рисуется в свой настоящий размер
-                circle(tx, ty, pr2, palm, inner: pr2 - 1.4)
+                // колечко чуть крупнее обычного кончика щупальца; хватает ладонь шире, чем нарисована (pr.palmR)
+                circle(tx, ty, nr + 1.3, palm, inner: nr - 0.1)
                 continue
             }
             // выключенный щуп: ядрышко едва заметным пустым колечком (пока его не начали включать).
