@@ -32,6 +32,11 @@ final class GameSession {
         renderer?.game.pressBegan(s)
     }
 
+    /// Ползунок над кнопками: поворот звезды секторов, градусы.
+    func setStarTurn(degrees: Double) {
+        Game.starTurn = Float(degrees * .pi / 180)
+    }
+
     func pressEnded(_ s: Int) {
         renderer?.game.pressEnded(s)
     }

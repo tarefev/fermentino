@@ -95,15 +95,18 @@ final class Game {
     // стрелки стоят через равный угол (как лучи пятиугольника). «Сектор» щупа — кнопка, чья стрелка сейчас
     // ближе всего к нему. В этом режиме probeOff и нажатия кнопок считаются по секторам, а ловят все щупы.
     var byDirection: Bool { round.probes?.colorByDirection ?? false }
+    /// Поворот воображаемой звезды секторов ползунком над кнопками (рад): крутит разом все стрелки и границы,
+    /// где щуп меняет цвет и кнопку. Живёт, пока запущено приложение, перезапуск тура его не сбрасывает.
+    static var starTurn: Float = 0
     /// Угол стрелки кнопки k на экране (рад; 0 — вправо, +π/2 — вниз).
     func arrowAngle(_ k: Int) -> Float {
         guard let pr = round.probes else { return 0 }
-        return pr.arrowBase + pr.arrowStep * Float(k)
+        return pr.arrowBase + Game.starTurn + pr.arrowStep * Float(k)
     }
     /// Положение щупа s вдоль ряда кнопок: целое — ровно на стрелке кнопки, дробное — между соседними.
     private func sectorPos(_ s: Int) -> Float {
         guard let pr = round.probes, pr.arrowStep != 0 else { return Float(s) }
-        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase - pr.sectorTilt) / pr.arrowStep
+        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase - Game.starTurn - pr.sectorTilt) / pr.arrowStep
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {

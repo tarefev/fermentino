@@ -264,6 +264,7 @@ private struct ProbeControls: View {
     ]
     private let buttonSize: CGFloat = 54
     @State private var pressed: Set<Int> = []      // какие кнопки щупов сейчас под пальцем
+    @State private var starTurn: Double = 0        // градусы: поворот звезды секторов ползунком (полный шаг звезды — 72°)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -283,6 +284,14 @@ private struct ProbeControls: View {
             }
             .buttonStyle(.plain)
             Spacer()
+            // ползунок над кнопками: крутит воображаемую звезду секторов — все стрелки разом
+            if hud.controlMode == .buttons && !hud.probeArrows.isEmpty {
+                Slider(value: $starTurn, in: -36...36)
+                    .tint(hudText.opacity(0.45))
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 10)
+                    .onChange(of: starTurn) { _, v in session.setStarTurn(degrees: v) }
+            }
             // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
             HStack(spacing: 0) {
                 if hud.controlMode == .buttons {
