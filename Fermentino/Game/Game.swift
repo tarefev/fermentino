@@ -184,7 +184,7 @@ final class Game {
     private var narrationShow: Float?            // сколько секунд висит текущая реплика; nil — по длине текста
     /// Реплики, которые сейчас звучат. Остальные сняты до обсуждения: их места в коде и строки в таблице
     /// остались, чтобы вернуть реплику, достаточно добавить её ключ сюда.
-    private static let activeLines: Set<String> = ["flight.power", "flight.arrow"]
+    private static let activeLines: Set<String> = ["flight.power", "flight.arrow", "flight.newton"]
     /// Обводка стрелки к поглотителю «мелом»: секунды с её начала, −1 — не идёт. Один раз за тур.
     private(set) var chalkT: Float = -1
     private var chalkDone = false
@@ -1438,7 +1438,9 @@ final class Game {
         if shipOn >= 1 { say("flight.start") }
         // реплика про стрелку — после паузы за погасшей репликой про включение; чуть позже стрелку обводят
         let arrowAt = K.SHIP_ON_DELAY + K.SHIP_ON_TIME + K.POWER_LINE_TAIL + K.ARROW_LINE_PAUSE
-        if introT >= arrowAt { say("flight.arrow") }
+        if introT >= arrowAt { say("flight.arrow", show: K.ARROW_LINE_SHOW) }
+        // реплика про Ньютона (как летать) — следом, после короткой паузы
+        if introT >= arrowAt + K.ARROW_LINE_SHOW + K.NEWTON_LINE_PAUSE { say("flight.newton") }
         if round.narration && !chalkDone && introT >= arrowAt + K.CHALK_DELAY { chalkDone = true; chalkT = 0 }
         if chalkT >= 0 {
             chalkT += rawElapsed
