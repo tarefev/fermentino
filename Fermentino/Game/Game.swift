@@ -858,8 +858,10 @@ final class Game {
         let len = simd_length(off)
         if len < 0.001 { return }
         // нажатие пускает волну из борта; комок срывается, когда она до него дойдёт (см. advanceShotWaves)
-        if shotWaves.contains(where: { $0.slot == s && !$0.fired }) { return }
-        // щупальце ещё восстанавливается: волна холостая — слабая, до него не достаёт и ничего не толкает
+        // настоящая волна уже идёт к этому щупальцу — второе нажатие ничего не добавит
+        if shotWaves.contains(where: { $0.slot == s && !$0.fired && !$0.weak }) { return }
+        // щупальце ещё восстанавливается: волна холостая — слабая и до него не достаёт. Холостые волны
+        // просто накладываются: каждое нажатие пускает свою, прежние дорисовываются до конца
         shotWaves.append(ShotWave(slot: s, strength: strength, out: off / len, t: 0, weak: probeReload[s] > 0))
     }
 
