@@ -35,30 +35,61 @@ y = biquad(biquad(y, type: "lp", f: 4500, q: 0.7), type: "lp", f: 4500, q: 0.7)
 let drive: Float = 2.6
 let peak0 = y.map { abs($0) }.max() ?? 1
 for i in 0..<y.count { y[i] = tanh(y[i] / peak0 * drive) / tanh(drive) }
-// шум плёнки и редкие щелчки. Шум — глухой, широкий (300–3000 Гц): узкая полоса на верхах звучала как свист.
-// Уровни задаются снаружи: HISS (по умолчанию 0.004, 0 — без шума) и CLICK (по умолчанию 0.03, 0 — без щелчков).
-let hissLevel = Float(ProcessInfo.processInfo.environment["HISS"] ?? "") ?? 0.004
-let clickLevel = Float(ProcessInfo.processInfo.environment["CLICK"] ?? "") ?? 0.03
+// Старые шумы. Уровни задаются снаружи, 0 выключает:
+//   HISS    — глухой широкий шум плёнки (300–3000 Гц; узкая полоса на верхах звучала как свист), по умолчанию 0.004
+//   CRACKLE — частый мелкий треск, штук в секунду, по умолчанию 9
+//   POP     — редкие крупные щелчки раз в 1–3 с, их громкость, по умолчанию 0.07
+//   WOW     — «плавание» звука, как на растянутой плёнке: доля отклонения высоты, по умолчанию 0.003
+func env(_ k: String, _ d: Float) -> Float { Float(ProcessInfo.processInfo.environment[k] ?? "") ?? d }
+let hissLevel = env("HISS", 0.004), crackle = env("CRACKLE", 9), popLevel = env("POP", 0.07), wow = env("WOW", 0.003)
 var seed: UInt64 = 0x9E3779B97F4A7C15
 func rnd() -> Float { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Float(seed >> 40) / Float(1 << 24) * 2 - 1 }
+
+// плавание: звук читается с переменной задержкой — медленная волна (0,6 Гц) и мелкая дрожь (7 Гц)
+if wow > 0 {
+    let slowA = Double(wow) * sr / (2 * Double.pi * 0.6), fastA = Double(wow) * 0.25 * sr / (2 * Double.pi * 7)
+    let base = slowA + fastA + 2
+    var w = [Float](repeating: 0, count: y.count)
+    for n in 0..<y.count {
+        let t = Double(n) / sr
+        let pos = Double(n) - base - slowA * sin(2 * Double.pi * 0.6 * t) - fastA * sin(2 * Double.pi * 7 * t)
+        if pos < 0 { continue }
+        let i0 = Int(pos), fr = Float(pos - Double(i0))
+        if i0 + 1 < y.count { w[n] = y[i0] * (1 - fr) + y[i0 + 1] * fr }
+    }
+    y = w
+}
 if hissLevel > 0 {
     var hiss = [Float](repeating: 0, count: y.count)
     for i in 0..<hiss.count { hiss[i] = rnd() }
     hiss = biquad(biquad(hiss, type: "hp", f: 300, q: 0.7), type: "lp", f: 3000, q: 0.7)
     for i in 0..<y.count { y[i] += hiss[i] * hissLevel }
 }
-if clickLevel > 0 {
+// щелчок: резкий фронт и короткий спад
+func click(at i: Int, amp: Float, len: Int) {
+    if i + len >= y.count { return }
+    let sign: Float = rnd() > 0 ? 1 : -1
+    for k in 0..<len {
+        var a = amp
+        if k >= 3 { a = amp * exp(-Float(k - 3) / Float(len) * 5) }
+        y[i + k] += a * sign
+    }
+}
+if crackle > 0 {
+    // мелкий треск: случайные моменты, разная громкость, изредка пачками
     var i = 0
     while i < y.count {
-        let wait: Double = 2.0 + Double(rnd() + 1) * 2.0       // щелчок раз в 2–6 с
+        let gap: Double = Double(rnd() + 1.02) / Double(crackle)
+        i += max(1, Int(gap * sr))
+        click(at: i, amp: 0.008 + abs(rnd()) * 0.022, len: 14)
+    }
+}
+if popLevel > 0 {
+    var i = 0
+    while i < y.count {
+        let wait: Double = 1.0 + Double(rnd() + 1) * 1.0
         i += Int(wait * sr)
-        if i + 40 >= y.count { break }
-        let sign: Float = rnd() > 0 ? 1 : -1
-        for k in 0..<40 {
-            var amp = clickLevel
-            if k >= 4 { amp = clickLevel * exp(-Float(k) / 8) }
-            y[i + k] += amp * sign
-        }
+        click(at: i, amp: popLevel * (0.6 + abs(rnd()) * 0.6), len: 48)
     }
 }
 let peak = y.map { abs($0) }.max() ?? 1
