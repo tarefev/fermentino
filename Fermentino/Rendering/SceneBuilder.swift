@@ -150,12 +150,13 @@ struct SceneBuilder {
             circle(p.x, p.y, r + blur * scale, glow, soft: 1)
             circle(p.x, p.y, r, col)
             if c.main {
-                // ржавчина: тёмные и рыжие пятна на корпусе, вращаются вместе с кораблём; с включением бледнеют
-                for b in K.RUST {
+                // ржавчина: тёмные и рыжие пятна на корпусе, вращаются вместе с кораблём; с включением
+                // исчезают полностью — включённый корабль ровный белый шар
+                for b in K.RUST where on < 1 {
                     let a = o.ang + b.ang * .pi / 180
                     let d = rot(cos(a) * b.dist * r, sin(a) * b.dist * r)
                     var rc = b.col
-                    rc.w = 0.9 * (1 - 0.8 * on)
+                    rc.w = 0.9 * (1 - on)
                     circle(p.x + d.x, p.y + d.y, b.r * r, rc, soft: 1)
                 }
             }
