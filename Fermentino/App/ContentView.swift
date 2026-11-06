@@ -250,30 +250,32 @@ private struct MoleculeIcon: View {
 
 // MARK: - Управление щупами (тест двух вариантов: А — кнопки, Б — свайп)
 
-/// Прицельная шкала над кнопками, как в бинокле: лента рисок едет под пальцем, посередине неподвижное
-/// перекрестие. Тянешь ленту — поворачивается звезда секторов (все стрелки разом). Круг замкнут, краёв нет.
+/// Прицельная шкала над кнопками, как в бинокле: лента рисок едет под пальцем, посередине неподвижная
+/// жирная риска. Тянешь — поворачивается звезда секторов (все стрелки разом). Круг замкнут, краёв нет.
+/// Сама шкала узкая и прижата к низу, но тянуть можно по всей высоте вида (нижняя треть экрана).
 private struct AimTape: View {
     @Binding var turn: Double                 // градусы, −180…180
     let onChange: (Double) -> Void
     @State private var dragStart: Double? = nil
     private let ptPerDeg: CGFloat = 2         // на экране видно около 150° шкалы
     private let stepDeg = 6.0                 // малая риска; каждая пятая (30°) — большая
+    private let inset: CGFloat = 22           // поля шкалы по бокам
 
     var body: some View {
         Canvas { ctx, size in
-            let mid = size.width / 2, base = size.height - 10
+            let mid = size.width / 2, halfW = mid - inset, base = size.height - 14
             // линия шкалы, гаснет к краям
             var line = Path()
-            line.move(to: CGPoint(x: 0, y: base)); line.addLine(to: CGPoint(x: size.width, y: base))
+            line.move(to: CGPoint(x: inset, y: base)); line.addLine(to: CGPoint(x: size.width - inset, y: base))
             ctx.stroke(line, with: .linearGradient(
                 Gradient(colors: [.clear, hudText.opacity(0.35), .clear]),
-                startPoint: CGPoint(x: 0, y: base), endPoint: CGPoint(x: size.width, y: base)), lineWidth: 1)
+                startPoint: CGPoint(x: inset, y: base), endPoint: CGPoint(x: size.width - inset, y: base)), lineWidth: 1)
             // риски
-            let span = Double(mid / ptPerDeg)
+            let span = Double(halfW / ptPerDeg)
             let first = Int(((-turn - span) / stepDeg).rounded(.down)), last = Int(((-turn + span) / stepDeg).rounded(.up))
             for k in first...last {
                 let x = mid + CGFloat(Double(k) * stepDeg + turn) * ptPerDeg
-                let edge = Double(max(0, 1 - abs(x - mid) / mid))
+                let edge = Double(max(0, 1 - abs(x - mid) / halfW))
                 let major = k % 5 == 0, home = k % 60 == 0      // home — исходное положение звезды
                 var h: CGFloat = 6
                 if major { h = 12 }
@@ -285,15 +287,12 @@ private struct AimTape: View {
                 if home { alpha = 1 }
                 ctx.stroke(tick, with: .color(hudText.opacity(alpha * edge)), lineWidth: home ? 1.5 : 1)
             }
-            // перекрестие посередине: неподвижное, в цвет корабля
-            let red = Color(red: 0xff / 255, green: 0x3b / 255, blue: 0x30 / 255)
-            var cross = Path()
-            cross.move(to: CGPoint(x: mid, y: 0)); cross.addLine(to: CGPoint(x: mid, y: size.height))
-            cross.move(to: CGPoint(x: mid - 9, y: base - 9)); cross.addLine(to: CGPoint(x: mid - 3, y: base - 9))
-            cross.move(to: CGPoint(x: mid + 3, y: base - 9)); cross.addLine(to: CGPoint(x: mid + 9, y: base - 9))
-            ctx.stroke(cross, with: .color(red.opacity(0.95)), lineWidth: 1.5)
+            // центральная риска: неподвижная, жирная, приглушённого красного (средний оттенок кнопок)
+            let mark = Color(red: 0xf8 / 255, green: 0x70 / 255, blue: 0x5e / 255)
+            var centre = Path()
+            centre.move(to: CGPoint(x: mid, y: base - 24)); centre.addLine(to: CGPoint(x: mid, y: base + 8))
+            ctx.stroke(centre, with: .color(mark.opacity(0.85)), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
         }
-        .frame(height: 40)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -347,9 +346,10 @@ private struct ProbeControls: View {
             Spacer()
             // ползунок над кнопками: крутит воображаемую звезду секторов — все стрелки разом
             if hud.controlMode == .buttons && !hud.probeArrows.isEmpty {
+                // тянуть можно по всей нижней трети экрана — на поле всё равно некуда тыкать
                 AimTape(turn: $starTurn) { session.setStarTurn(degrees: $0) }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 8)
+                    .frame(height: UIScreen.main.bounds.height / 3)
+                    .padding(.bottom, 4)
             }
             // один ряд: кнопки щупов (вариант А) и «отклеить последнее» того же размера справа
             HStack(spacing: 0) {
