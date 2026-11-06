@@ -26,9 +26,12 @@ struct PrologueView: View {
             Color.black.ignoresSafeArea()
             let frame = frames[index]
             if let name = frame.image, let ui = UIImage(named: name) {
-                Image(uiImage: ui)
-                    .resizable()
-                    .scaledToFill()
+                // картинка заполняет экран как фон и обрезается по нему: сама по себе она шире экрана,
+                // и без этого растягивала всю разметку — реплика уезжала под края
+                // обрезка смещена вправо: слева остаются профессор и его рука целиком
+                Color.clear
+                    .overlay(alignment: .leading) { Image(uiImage: ui).resizable().scaledToFill().offset(x: -18) }
+                    .clipped()
                     .ignoresSafeArea()
             }
             VStack {
@@ -36,15 +39,17 @@ struct PrologueView: View {
                     // реплика внизу кадра: наверху она закрывала лицо профессора
                     Spacer()
                     Text(Strings.t(frame.key))
-                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                        // рубленый шрифт в духе чертёжного ГОСТа: читается мелко, есть кириллица
+                        .font(.custom("DINAlternate-Bold", size: 19))
                         .foregroundStyle(prologueText)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(.leading)   // прижат к левому краю, не по центру
+                        .lineSpacing(9)
                         .shadow(color: .black, radius: 8, y: 2)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.black.opacity(0.45))
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, 36)          // поля по бокам: строки не упираются в края экрана
+                        .padding(.vertical, 18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.62))
+                        .padding(.bottom, 64)              // вся плашка поднята от нижнего края
                 } else {
                     Spacer()
                     Text(Strings.t(frame.key))

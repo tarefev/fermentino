@@ -60,8 +60,22 @@ enum Strings {
     }
 
     static func t(_ key: String) -> String {
-        if isRussian, let s = ru[key] { return s }
-        if let s = en[key] { return s }
+        if isRussian, let s = ru[key] { return glue(s) }
+        if let s = en[key] { return glue(s) }
         return key
+    }
+
+    /// Типографика: короткое слово (до трёх букв) приклеивается к следующему неразрывным пробелом,
+    /// чтобы предлоги, артикли и союзы не повисали в конце строки. После знака препинания не клеим.
+    static func glue(_ s: String) -> String {
+        let words = s.split(separator: " ", omittingEmptySubsequences: false)
+        var out = ""
+        for (i, w) in words.enumerated() {
+            out += w
+            if i == words.count - 1 { break }
+            let short = w.count <= 3 && !w.isEmpty && w.allSatisfy { $0.isLetter }
+            out += short ? "\u{00A0}" : " "
+        }
+        return out
     }
 }
