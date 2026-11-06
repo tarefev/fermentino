@@ -382,6 +382,8 @@ private struct ProbeControls: View {
                                         .font(.system(size: 20, weight: .bold))
                                         .foregroundStyle(col.opacity(0.3 + 0.65 * on))
                                         .rotationEffect(.radians(Double(hud.probeArrows[s]) + .pi / 2))
+                                        // зеркальный переворот ряда: стрелка плавно доворачивается, а не прыгает
+                                        .animation(.easeInOut(duration: 0.25), value: hud.probeMirror)
                                 }
                             }
                             .frame(width: buttonSize, height: buttonSize)

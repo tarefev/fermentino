@@ -101,12 +101,34 @@ final class Game {
     /// Угол стрелки кнопки k на экране (рад; 0 — вправо, +π/2 — вниз).
     func arrowAngle(_ k: Int) -> Float {
         guard let pr = round.probes else { return 0 }
-        return pr.arrowBase + Game.starTurn + pr.arrowStep * Float(k)
+        return middleAngle + effStep * Float(k - cores[0].slots.count / 2)
+    }
+    /// Куда смотрит средняя кнопка (главная метка на корабле): исходное направление плюс поворот шкалой.
+    private var middleAngle: Float {
+        guard let pr = round.probes else { return 0 }
+        return pr.arrowBase + pr.arrowStep * Float(cores[0].slots.count / 2) + Game.starTurn
+    }
+    /// Шаг между стрелками соседних кнопок. Ряд кнопок — это круг, развёрнутый в линию; чтобы левые кнопки
+    /// всегда кидали влево, а правые вправо, порядок по кругу зеркалится, когда средняя кнопка смотрит вверх.
+    private var effStep: Float {
+        guard let pr = round.probes else { return 0 }
+        return starMirrored ? -pr.arrowStep : pr.arrowStep
+    }
+    private(set) var starMirrored = false
+    private var arrowShown: [Float] = []       // углы стрелок для кнопок, развёрнутые без скачков через 360°
+    /// Раз в кадр: зеркалим ряд, когда средняя кнопка переходит через горизонталь (с запасом 3°, чтобы
+    /// у самой горизонтали раскладка не дёргалась туда-сюда).
+    private func updateStarMirror() {
+        guard byDirection else { return }
+        let up = -sin(middleAngle)                  // > 0 — средняя кнопка смотрит в верхнюю половину
+        let margin = sin(3 * Float.pi / 180)
+        if !starMirrored && up > margin { starMirrored = true }
+        if starMirrored && up < -margin { starMirrored = false }
     }
     /// Положение щупа s вдоль ряда кнопок: целое — ровно на стрелке кнопки, дробное — между соседними.
     private func sectorPos(_ s: Int) -> Float {
         guard let pr = round.probes, pr.arrowStep != 0 else { return Float(s) }
-        return (bodies[0].ang + cores[0].slots[s] - pr.arrowBase - Game.starTurn - pr.sectorTilt) / pr.arrowStep
+        return (bodies[0].ang + cores[0].slots[s] - arrowAngle(0) - pr.sectorTilt) / effStep
     }
     /// Сектор (направление на экране, он же номер кнопки и цвета), в котором сейчас щуп s.
     func probeSector(_ s: Int) -> Int {
@@ -1255,6 +1277,7 @@ final class Game {
         }
         gfxSpin += 0.05
         advancePresses(rawElapsed)
+        updateStarMirror()
         for s in 0..<probePulse.count where probePulse[s] > 0 { probePulse[s] = max(0, probePulse[s] - rawElapsed / 0.28) }
         advanceNarration()
 
@@ -1305,9 +1328,21 @@ final class Game {
             return 0.2 + 0.8 * min(1, Float(held[p].count) / Float(max(1, pr.maxClump)))
         })
         set(&h.probeOff, probeOff)
-        // стрелка кнопки стоит на месте и показывает середину её сектора; сам бросок идёт по лучу щупа,
-        // который сейчас в секторе, то есть может отличаться от стрелки до половины шага
-        set(&h.probeArrows, byDirection ? (0..<cores[0].slots.count).map { arrowAngle($0) } : [])
+        // стрелка кнопки показывает середину её сектора. Углы отдаём «развёрнутыми» — каждый раз идём к новому
+        // значению кратчайшей дугой, — чтобы при зеркальном перевороте ряда стрелка плавно доворачивалась, а не
+        // крутилась через полный круг
+        if byDirection {
+            let n = cores[0].slots.count
+            if arrowShown.count != n { arrowShown = (0..<n).map { arrowAngle($0) } }
+            for k in 0..<n {
+                var d = (arrowAngle(k) - arrowShown[k]).truncatingRemainder(dividingBy: 2 * .pi)
+                if d > .pi { d -= 2 * .pi }
+                if d < -.pi { d += 2 * .pi }
+                arrowShown[k] += d
+            }
+        }
+        set(&h.probeArrows, byDirection ? arrowShown : [])
+        set(&h.probeMirror, starMirrored)
         set(&h.probeHold, (0..<probeOff.count).map { probeHoldProgress($0) })
         set(&h.controlMode, controlMode)
         set(&h.showDebug, showDebug)
