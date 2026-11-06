@@ -22,6 +22,30 @@ struct PrologueView: View {
         (nil, "prologue.tagline", .center, 0),
     ]
 
+    /// Текст реплики, раскрашенный по ходу записи `voice`: сказанные слова — полным цветом, остальные бледные.
+    /// Нет записи, нет расписания или число слов не сошлось — весь текст полным цветом.
+    private func karaoke(_ text: String, voice: String) -> AttributedString {
+        var out = AttributedString()
+        // слова разделены пробелом или неразрывным пробелом (им приклеены короткие слова, см. Strings.glue)
+        var words: [(word: String, sep: String)] = []
+        var cur = ""
+        for ch in text {
+            if ch == " " || ch == "\u{00A0}" { words.append((cur, String(ch))); cur = ""; continue }
+            cur.append(ch)
+        }
+        if !cur.isEmpty { words.append((cur, "")) }
+        let times = VoiceTimings.words[voice]
+        let now = Voice.shared.time(of: voice)
+        for (i, w) in words.enumerated() {
+            var piece = AttributedString(w.word + w.sep)
+            var lit = true
+            if let times, let now, times.count == words.count, now + 0.06 < times[i] { lit = false }
+            piece.foregroundColor = lit ? prologueLine : prologueLine.opacity(0.26)
+            out += piece
+        }
+        return out
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -38,7 +62,11 @@ struct PrologueView: View {
                 if frame.image != nil {
                     // реплика внизу кадра: наверху она закрывала лицо профессора
                     Spacer()
-                    Text(Strings.t(frame.key))
+                    // караоке: слова загораются по ходу озвучки. Реплика стоит на плашке целиком с самого начала
+                    // (несказанные слова бледные), поэтому строки не прыгают
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { _ in
+                        Text(karaoke(Strings.t(frame.key), voice: "voice_prologue\(index + 1)"))
+                    }
                         // Russo One: широкий рубленый шрифт советского плакатного склада, с кириллицей
                         .font(.custom("RussoOne-Regular", size: 16))
                         .foregroundStyle(prologueLine)

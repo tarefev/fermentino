@@ -12,6 +12,17 @@ final class Voice: NSObject, AVAudioPlayerDelegate {
     static let shared = Voice()
     private var player: AVAudioPlayer?
     private var onEnd: (() -> Void)?
+    private var ended = false
+    private var startAt: TimeInterval = 0
+    private(set) var name: String?
+
+    /// Сколько секунд записи `name` уже прозвучало: nil — она сейчас не играет и не доиграла (текст показываем
+    /// целиком), бесконечность — доиграла до конца.
+    func time(of name: String) -> Double? {
+        guard self.name == name, let p = player else { return nil }
+        if ended { return .infinity }
+        return max(0, p.deviceCurrentTime - startAt)
+    }
 
     private override init() {
         super.init()
@@ -27,19 +38,24 @@ final class Voice: NSObject, AVAudioPlayerDelegate {
         guard let url = Bundle.main.url(forResource: name, withExtension: "m4a") else { return }
         guard let p = try? AVAudioPlayer(contentsOf: url) else { return }
         player = p
+        self.name = name
+        ended = false
         self.onEnd = onEnd
         p.delegate = self
         p.prepareToPlay()
-        p.play(atTime: p.deviceCurrentTime + delay)
+        startAt = p.deviceCurrentTime + delay
+        p.play(atTime: startAt)
     }
 
     func stop() {
         onEnd = nil
         player?.stop()
         player = nil
+        name = nil
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        ended = true
         let done = onEnd
         onEnd = nil
         done?()
